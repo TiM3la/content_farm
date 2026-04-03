@@ -3,9 +3,15 @@ import yadisk as yd
 import numpy as np
 import pandas as pd
 import os, mmap, codecs
+from dotenv import load_dotenv
 
 
-yd_token = 'y0__xCigd-mCBj76D8gyKKS-hZpnEvyFrPRUfxqf66KxY3EqDTWOg'
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path)
+
+yd_token = os.getenv('YANDEX_DISK_API_TOKEN')
+higging_face_token = os.getenv('HUGGING_FACE_API_TOKEN')
 db_name = 'main_db.duckdb'
 fragment_size = 4000
 fragment_overlap = 300
@@ -30,7 +36,7 @@ class Main_DB:
         try:
             print(f'[Процесс...] Создаем таблицу Fragment')
             self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_fragment_id START 1;")
-            self.base.execute("create table if not exists Fragment (id integer primary key default nextval('seq_fragment_id'), book_id integer REFERENCES Book(id), size integer, date_yd TIMESTAMP_S, link_yd varchar(255))")
+            self.base.execute("create table if not exists Fragment (id integer primary key default nextval('seq_fragment_id'), book_id integer REFERENCES Book(id), size integer, date_yd TIMESTAMP_S, date_analys TIMESTAMP_S, link_yd varchar(255))")
             return '[ОК] Таблица Fragment создана'
         except Exception as e:
             return f'[!] Ошибка! Таблица Fragment не создана. {e}'
@@ -43,7 +49,7 @@ class Main_DB:
                     id, title, author, language = item.name.rstrip('.txt').split('_')
                     result = self.base.execute("select * from Book where id = ?", [id]).fetchall()
                     if not bool(result):
-                        self.base.execute('insert into Book (id, title, author, language, size, date_yd, position, is_readed, link_yd) values(?, ?, ?, ?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, 0, False, ?)', [int(id), title, author, language, None, f'app:/books/{item.name}'])
+                        self.base.execute('insert into Book (id, title, author, language, date_yd, position, is_readed, link_yd) values(?, ?, ?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, 0, False, ?)', [int(id), title, author, language, f'app:/books/{item.name}'])
                         print(f'[ОК] Загружена книга {item.name}')
                     else:
                         print(f'[ОК] Книга {item.name} была загружена ранее')
@@ -72,7 +78,7 @@ class Main_DB:
             print(f'[Процесс...] Извлекаем фрагмент из книги')
             df = self.base.execute('SELECT * FROM Book WHERE is_readed IS FALSE ORDER BY id LIMIT 1').df()
             if df.empty:
-                print(f'[Ошибка] Все книги прочитанны')
+                print(f'[Пусто] Все книги прочитаны')
                 return
             book_object = df.iloc[0].to_dict()
 
@@ -83,7 +89,7 @@ class Main_DB:
             text, next_byte = read_fragment_approx(f'books/{file_name}', book_object['position']-fragment_overlap * 2, fragment_size * 2)
             if text:
                 cur_fragment = self.base.execute(
-                    'insert into Fragment(book_id, size, date_yd, link_yd) values (?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, ?) RETURNING id',
+                    'insert into Fragment(book_id, size, date_yd, date_analys, link_yd) values (?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, Null, ?) RETURNING id',
                     [book_object['id'], len(text), None])
                 fragment_id = cur_fragment.fetchone()[0]
                 with open(f'fragments/{fragment_id}_{book_object["title"]}.txt', 'w',
@@ -103,9 +109,14 @@ class Main_DB:
         except Exception as e:
             print(f'[Ошибка] Фрагмент не получен: {e}')
 
+    def analyse_fragment(self):
+        df = self.base.execute('select * from Fragment where date_analys is Null limit 1').df()
+        if df.empty:
+            print(f'[Пусто] Нет непроанализированных фрагментов')
+            return
+        fragment_object = df.iloc[0].to_dict()
 
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
     main_db.load_books()
-    for i in range(3):
-        main_db.make_book_fragment()
+    # main_db.make_book_fragment()
