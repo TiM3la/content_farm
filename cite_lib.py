@@ -1,9 +1,12 @@
+import time
+
 import duckdb as d
 import yadisk as yd
 import numpy as np
 import pandas as pd
 import os, mmap, codecs
 from dotenv import load_dotenv
+from huggingface_hub import InferenceClient
 
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -13,8 +16,31 @@ if os.path.exists(dotenv_path):
 yd_token = os.getenv('YANDEX_DISK_API_TOKEN')
 higging_face_token = os.getenv('HUGGING_FACE_API_TOKEN')
 db_name = 'main_db.duckdb'
+# параметры фрагментирования
 fragment_size = 4000
 fragment_overlap = 300
+# Анализ текста
+model_id = "Qwen/Qwen2.5-7B-Instruct"
+system_prompt_generate = (
+    "Ты — эксперт, который вычленяет из текстов интересные высказывания "
+    "Твоя задача: найти в тексте интересные высказывания, философские изречения или жизненные наблюдения. "
+    "ИНСТРУКЦИЯ:\n"
+    "1. Выпиши цитаты(они могут состоять из нескольких предложений), которые могут звучать интересно, философски без контекста, нести какую то отдельную, законченную мысль\n"
+    "2. Эти цитаты должны быть в объеме около 120-150 слов.\n"
+    "3. В ответе пиши только сами цитаты, если их несколько во фрагменте, разделяй их знаком ***\n"
+    "4. Не выбирай предложения, которые комбинируют несколько языков. Только один, на котором книга\n"
+    "5. Предложения должны быть законченными, нельзя обрывать слова или оставлять предложения незаконченными\n"
+)
+system_prompt_check = (
+    "Проверь этот текст по следующим параметрам:"
+    "Текст представляет собой законченную мысль, он не обрывается на полуслове. Его объем составляет 120 - 150 слов. Текст состоит только из русских слов. Текст содержит в себе интересную мысль, философское изречение или жизненное наблюдение, или рассуждение. Текст понятен без контекста и не оставляет вопросов: о ком или о чем идет речь? В нем не упоминаются непонятные имена."
+    "Если текст соответствует этим требованиям, отредактируй его: убери лишние слова в скобках, какие-то лишние пометки и комментарии, которые бы диктор не стал читать. В результате выведи только этот отредактированный текст"
+    "Если текст не соответствует требованиям, выведи только слово NONE"
+)
+# озвучка
+voiceover_types = {
+    1: 'Обычный мужской голос'
+}
 
 class Main_DB:
     def __init__(self, db_name, yd_token):
@@ -23,11 +49,13 @@ class Main_DB:
 
         print(self.make_book_table())
         print(self.make_fragment_table())
+        print(self.make_quote_table())
+        print(self.make_voiceove_table())
 
     def make_book_table(self):
         try:
             print(f'[Процесс...] Создаем таблицу Book')
-            self.base.execute('create table if not exists Book (id integer primary key, title varchar(255), author varchar(255), language varchar(2), date_yd TIMESTAMP_S, position integer, is_readed boolean, link_yd varchar(255))')
+            self.base.execute('create table if not exists Book (id integer primary key, title varchar, author varchar, language varchar(2), date_yd TIMESTAMP_S, position integer, is_readed boolean, link_yd varchar)')
             return '[ОК] Таблица Book создана'
         except Exception as e:
             return f'[!] Ошибка! Таблица Book не создана. {e}'
@@ -36,10 +64,28 @@ class Main_DB:
         try:
             print(f'[Процесс...] Создаем таблицу Fragment')
             self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_fragment_id START 1;")
-            self.base.execute("create table if not exists Fragment (id integer primary key default nextval('seq_fragment_id'), book_id integer REFERENCES Book(id), size integer, date_yd TIMESTAMP_S, date_analys TIMESTAMP_S, link_yd varchar(255))")
+            self.base.execute("create table if not exists Fragment (id integer primary key default nextval('seq_fragment_id'), book_id integer REFERENCES Book(id), size integer, date_yd TIMESTAMP_S, date_analys TIMESTAMP_S, link_yd varchar)")
             return '[ОК] Таблица Fragment создана'
         except Exception as e:
             return f'[!] Ошибка! Таблица Fragment не создана. {e}'
+
+    def make_quote_table(self):
+        try:
+            print(f'[Процесс...] Создаем таблицу Quote')
+            self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_quote_id START 1;")
+            self.base.execute("create table if not exists Quote (id integer primary key default nextval('seq_quote_id'), fragment_id integer REFERENCES Fragment(id), text varchar, size integer, date_create TIMESTAMP_S, date_use TIMESTAMP_S)")
+            return '[ОК] Таблица Quote создана'
+        except Exception as e:
+            return f'[!] Ошибка! Таблица Quote не создана. {e}'
+
+    def make_voiceove_table(self):
+        try:
+            print(f'[Процесс...] Создаем таблицу Voiceover')
+            self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_voiceover_id START 1;")
+            self.base.execute("create table if not exists Voiceover (id integer primary key default nextval('seq_voiceover_id'), quote_id integer REFERENCES Quote(id), type varchar, duration integer, date_create TIMESTAMP_S, date_use TIMESTAMP_S, link_yd VARCHAR)")
+            return '[ОК] Таблица Voiceover создана'
+        except Exception as e:
+            return f'[!] Ошибка! Таблица Voiceover не создана. {e}'
 
     def load_books(self):
         try:
@@ -108,6 +154,7 @@ class Main_DB:
                 os.remove(f'books/{file_name}')
         except Exception as e:
             print(f'[Ошибка] Фрагмент не получен: {e}')
+            return False
 
     def analyse_fragment(self):
         df = self.base.execute('select * from Fragment where date_analys is Null limit 1').df()
@@ -115,8 +162,82 @@ class Main_DB:
             print(f'[Пусто] Нет непроанализированных фрагментов')
             return
         fragment_object = df.iloc[0].to_dict()
+        print(f'[Процесс...] Анализируем фрагмент {fragment_object["id"]}')
+        fragment_text = ''
+        file_name = fragment_object['link_yd'].split('/')[-1]
+        self.y.download(fragment_object['link_yd'], f'fragments/{file_name}')
+        with open(f'fragments/{file_name}', 'r', encoding='utf-8') as fragment_file:
+            fragment_text = fragment_file.read()
+
+        client = InferenceClient(
+            api_key=higging_face_token,
+            timeout=30,  # ждём минуту
+        )
+        messages = [
+            {"role": "system", "content": system_prompt_generate},
+            {"role": "user", "content": f"Текст для анализа:\n\n{fragment_text}"}
+        ]
+        try:
+            response = client.chat_completion(
+                model=model_id,
+                messages=messages,
+                temperature=0.1,  # Низкая температура для точного извлечения без галлюцинаций
+            )
+            result = response.choices[0].message.content.strip()
+            if result != 'NONE':
+                cites_list = result.split('***')
+                print(f'[ОК] Получен результат для фрагмента: {len(cites_list)} цитат. Проверяем их...')
+                for i in range(len(cites_list)):
+                    try:
+                        messages = [
+                            {"role": "system", "content": system_prompt_check},
+                            {"role": "user", "content": f"Текст для анализа:\n\n{cites_list[i]}"}
+                        ]
+                        response = client.chat_completion(
+                            model=model_id,
+                            messages=messages,
+                            temperature=0.1,  # Низкая температура для точного извлечения без галлюцинаций
+                        )
+                        result_check = response.choices[0].message.content.strip()
+                        if result_check == 'NONE':
+                            print(f'[ОК] Цитата {i+1} из фрагмента {fragment_object["id"]} отвергнута: {cites_list[i]}')
+                        else:
+                            quote_id = self.base.execute('insert into Quote(fragment_id, text, size, date_create, date_use) values (?, ?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, NULL) returning id', [fragment_object['id'], result_check, len(result_check.split())])
+                            quote_id = quote_id.fetchone()[0]
+                            print(f'[ОК] Цитата {i + 1}({quote_id}) из фрагмента {fragment_object["id"]} принята: {cites_list[i]}')
+                    except Exception as e:
+                        print(f'[Ошибка] Ошибка при обращении к API: {e}')
+
+            else:
+                print(f'[ОК] Проанализирован фрагмент {fragment_object["id"]}: {result}')
+            self.base.execute('update Fragment set date_analys = NOW()::TIMESTAMP::TIMESTAMP_S where id = ?', [fragment_object['id']])
+            os.remove(f'fragments/{file_name}')
+        except Exception as e:
+            print(f'[Ошибка] Ошибка при обращении к API: {e}')
+            os.remove(f'fragments/{file_name}')
+            return False
+
+    def make_voiceover(self, voiceover_type):
+        print(f'[Процесс...] Создаем озвучку цитаты')
+        df = self.base.execute('''
+                               SELECT Q.*
+                               FROM Quote Q
+                               WHERE NOT EXISTS (SELECT 1
+                                                 FROM Voiceover V
+                                                 WHERE V.quote_id = Q.id
+                                                   AND V.type = ?)
+                               ORDER BY Q.id LIMIT 1
+                               ''', [voiceover_type]).df()
+        if df.empty:
+            print(f'[Пусто] Нет свободных цитат для этого типа озвучки')
+            return
+        quote_object = df.iloc[0].to_dict()
+        print(f'[ОК] Найдена цитата {quote_object["id"]}: {quote_object["text"]}')
+
 
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
     main_db.load_books()
     # main_db.make_book_fragment()
+    # ain_db.analyse_fragment()
+    main_db.make_voiceover(1)
