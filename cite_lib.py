@@ -1,5 +1,4 @@
 import time
-
 import duckdb as d
 import yadisk as yd
 import numpy as np
@@ -7,6 +6,10 @@ import pandas as pd
 import os, mmap, codecs
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
+import subprocess, re
+from gradio_client import Client
+from kaggle.api.kaggle_api_extended import KaggleApi
+from kaggle_launch.voiceover.run_kaggle_voiceover import run_kaggle_voiceover
 
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -41,6 +44,7 @@ system_prompt_check = (
 voiceover_types = {
     1: 'Обычный мужской голос'
 }
+kaggle_notebook_name = "tim3la/voiceover_1"
 
 class Main_DB:
     def __init__(self, db_name, yd_token):
@@ -233,6 +237,16 @@ class Main_DB:
             return
         quote_object = df.iloc[0].to_dict()
         print(f'[ОК] Найдена цитата {quote_object["id"]}: {quote_object["text"]}')
+
+        # запускаем notebook на kaggle
+        client = run_kaggle_voiceover()
+
+        result = client.predict(
+            quote_object["text"],
+            api_name="/predict"
+        )
+        print(f"[ПК] Успех! Ответ: {result}")
+
 
 
 if __name__ == '__main__':
