@@ -1,3 +1,5 @@
+# cite_lib.py
+
 import time
 import duckdb as d
 import yadisk as yd
@@ -221,7 +223,7 @@ class Main_DB:
             os.remove(f'fragments/{file_name}')
             return False
 
-    def make_voiceover(self, voiceover_type):
+    def make_voiceover(self, voiceover_type, client):
         print(f'[Процесс...] Создаем озвучку цитаты')
         df = self.base.execute('''
                                SELECT Q.*
@@ -238,15 +240,40 @@ class Main_DB:
         quote_object = df.iloc[0].to_dict()
         print(f'[ОК] Найдена цитата {quote_object["id"]}: {quote_object["text"]}')
 
-        # запускаем notebook на kaggle
+        try:
+            voiceover_id = self.base.execute('insert into Voiceover(quote_id, type) values (?, ?) returning id', [quote_object['id'], voiceover_type])
+            voiceover_id = voiceover_id.fetchone()[0]
+            for attempt in range(7):
+                try:
+                    print(f"[Процесс...] Попытка {attempt + 1}: пробуем...")
+                    result = client.predict(
+                        quote_object["text"],
+                        voiceover_id,
+                        quote_object['id'],
+                        voiceover_type,
+                        "Сегодня на улице стоит прекрасная погода. Я занимаюсь настройкой нейронных сетей для автоматической озвучки текстов. Это очень интересный процесс, который требует внимания к деталям и правильной настройки всех параметров модели.",
+                        api_name="/predict"
+                    )
+                except Exception as e:
+                    print(f"[!] Попытка {attempt + 1}: Сервер еще не готов ({e})")
+                    if attempt < 4:
+                        time.sleep(10)  # Даем облаку больше времени на "прогрев"
+                    else:
+                        print("[!!!] Критическая ошибка связи.")
+            print(f"[ПК] Создана озвучка {result}")
+            self.base.execute('update Voiceover set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?', [f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}', voiceover_id])
+            self.base.execute('update Quote set date_use = NOW()::TIMESTAMP::TIMESTAMP_S where id = ?', [quote_object['id']])
+        except Exception as e:
+            self.base.execute('delete from Voiceover where id = ?', [voiceover_id])
+            print(f"[Ошибка] {e}")
+
+    def run_voiceover(self, n, type):
         client = run_kaggle_voiceover()
-
-        result = client.predict(
-            quote_object["text"],
-            api_name="/predict"
-        )
-        print(f"[ПК] Успех! Ответ: {result}")
-
+        if client:
+            for i in range(n):
+                main_db.make_voiceover(type, client)
+        else:
+            print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
 
 
 if __name__ == '__main__':
@@ -254,4 +281,4 @@ if __name__ == '__main__':
     main_db.load_books()
     # main_db.make_book_fragment()
     # ain_db.analyse_fragment()
-    main_db.make_voiceover(1)
+    main_db.run_voiceover(4, 1)

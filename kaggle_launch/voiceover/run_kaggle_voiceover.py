@@ -1,4 +1,7 @@
-import time, os
+# run_kaggle_voiceover.py
+import time, sys, io
+import os
+
 
 from huggingface_hub import InferenceClient
 from kaggle.api.kaggle_api_extended import KaggleApi
@@ -35,6 +38,11 @@ def get_remote_gradio_url(y_client):
         return None
 
 def run_kaggle_voiceover():
+    try:
+        y.remove('app:/gradio_url.txt')  # Чистим старую ссылку
+    except:
+        pass
+
     api = KaggleApi()
     api.authenticate()
 
@@ -57,7 +65,7 @@ def run_kaggle_voiceover():
 
             print(f"[{time.strftime('%H:%M:%S')}] Статус: {status}")
 
-            if 'running' in str(status).lower():
+            if 'running' in str(status).lower() or 'complete' in str(status).lower():
                 print("\n[ОК] Работает!")
                 break
 

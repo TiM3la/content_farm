@@ -7,7 +7,10 @@
   "is_private": "true",
   "enable_gpu": "true",
   "enable_internet": "true",
-  "dataset_sources": [],
+  "dataset_sources": [
+    "tim3la/qwen3-base-model",
+    "tim3la/qenat-voice-3"
+  ],
   "competition_sources": [],
   "kernel_sources": []
 }
