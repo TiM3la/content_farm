@@ -11,8 +11,11 @@ from huggingface_hub import InferenceClient
 import subprocess, re
 from gradio_client import Client
 from kaggle.api.kaggle_api_extended import KaggleApi
-from kaggle_launch.voiceover.run_kaggle_voiceover import run_kaggle_voiceover
+from kaggle_launcher import run_kaggle_notebook
+from pathlib import Path
 
+
+BASE_DIR = Path(__file__).resolve().parent
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
@@ -44,13 +47,12 @@ system_prompt_check = (
 )
 # озвучка
 voiceover_types = {
-    1: 'Обычный мужской голос'
+    1: 'qenat_voice_2.wav'
 }
-kaggle_notebook_name = "tim3la/voiceover_1"
 
 class Main_DB:
     def __init__(self, db_name, yd_token):
-        self.base = d.connect(db_name)
+        self.base = d.connect(BASE_DIR / db_name)
         self.y = yd.YaDisk(token=yd_token)
 
         print(self.make_book_table())
@@ -135,29 +137,29 @@ class Main_DB:
             book_object = df.iloc[0].to_dict()
 
             file_name = book_object['link_yd'].split('/')[-1]
-            if not os.path.exists(f'books/{file_name}'):
-                self.y.download(book_object['link_yd'], f'books/{file_name}')
+            books_path = BASE_DIR / 'temp' / 'books' / file_name
+            if not os.path.exists(books_path):
+                self.y.download(book_object['link_yd'], books_path)
 
-            text, next_byte = read_fragment_approx(f'books/{file_name}', book_object['position']-fragment_overlap * 2, fragment_size * 2)
+            text, next_byte = read_fragment_approx(books_path, book_object['position']-fragment_overlap * 2, fragment_size * 2)
             if text:
                 cur_fragment = self.base.execute(
                     'insert into Fragment(book_id, size, date_yd, date_analys, link_yd) values (?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, Null, ?) RETURNING id',
                     [book_object['id'], len(text), None])
                 fragment_id = cur_fragment.fetchone()[0]
-                with open(f'fragments/{fragment_id}_{book_object["title"]}.txt', 'w',
-                          encoding='utf-8') as fragment_file:
+                fragments_path = BASE_DIR / 'temp' / 'fragments' / f'{fragment_id}_{book_object["title"]}.txt'
+                with open(fragments_path, 'w', encoding='utf-8') as fragment_file:
                     fragment_file.write(text)
                 self.base.execute('update Fragment set link_yd = ? where id = ?',
                                   [f'app:/fragments/{fragment_id}_{book_object["title"]}.txt', fragment_id])
-                self.y.upload(f'fragments/{fragment_id}_{book_object["title"]}.txt',
-                              f'app:/fragments/{fragment_id}_{book_object["title"]}.txt')
-                os.remove(f'fragments/{fragment_id}_{book_object["title"]}.txt')
+                self.y.upload(fragments_path,f'app:/fragments/{fragment_id}_{book_object["title"]}.txt')
+                os.remove(f'{fragments_path}/{fragment_id}_{book_object["title"]}.txt')
                 print(f'[ОК] Получен фрагмент {fragment_id}')
                 self.base.execute('update Book set position = ? where id = ?', [next_byte, book_object['id']])
             else:
                 self.base.execute('update Book set is_readed = True where id = ?', [book_object['id']])
                 print(f'[ОК] Книга прочитана до конца')
-                os.remove(f'books/{file_name}')
+                os.remove(books_path)
         except Exception as e:
             print(f'[Ошибка] Фрагмент не получен: {e}')
             return False
@@ -171,8 +173,9 @@ class Main_DB:
         print(f'[Процесс...] Анализируем фрагмент {fragment_object["id"]}')
         fragment_text = ''
         file_name = fragment_object['link_yd'].split('/')[-1]
-        self.y.download(fragment_object['link_yd'], f'fragments/{file_name}')
-        with open(f'fragments/{file_name}', 'r', encoding='utf-8') as fragment_file:
+        fragment_path = BASE_DIR / 'temp' / 'fragments' / file_name
+        self.y.download(fragment_object['link_yd'], fragment_path)
+        with open(fragment_path, 'r', encoding='utf-8') as fragment_file:
             fragment_text = fragment_file.read()
 
         client = InferenceClient(
@@ -217,10 +220,10 @@ class Main_DB:
             else:
                 print(f'[ОК] Проанализирован фрагмент {fragment_object["id"]}: {result}')
             self.base.execute('update Fragment set date_analys = NOW()::TIMESTAMP::TIMESTAMP_S where id = ?', [fragment_object['id']])
-            os.remove(f'fragments/{file_name}')
+            os.remove(fragment_path)
         except Exception as e:
             print(f'[Ошибка] Ошибка при обращении к API: {e}')
-            os.remove(f'fragments/{file_name}')
+            os.remove(fragment_path)
             return False
 
     def make_voiceover(self, voiceover_type, client):
@@ -254,10 +257,11 @@ class Main_DB:
                         "Сегодня на улице стоит прекрасная погода. Я занимаюсь настройкой нейронных сетей для автоматической озвучки текстов. Это очень интересный процесс, который требует внимания к деталям и правильной настройки всех параметров модели.",
                         api_name="/predict"
                     )
+                    break
                 except Exception as e:
                     print(f"[!] Попытка {attempt + 1}: Сервер еще не готов ({e})")
                     if attempt < 4:
-                        time.sleep(10)  # Даем облаку больше времени на "прогрев"
+                        time.sleep(10)
                     else:
                         print("[!!!] Критическая ошибка связи.")
             print(f"[ПК] Создана озвучка {result}")
@@ -268,7 +272,7 @@ class Main_DB:
             print(f"[Ошибка] {e}")
 
     def run_voiceover(self, n, type):
-        client = run_kaggle_voiceover()
+        client = run_kaggle_notebook('gradio_url_voiceover.txt', "tim3la/voiceover-1", 'C:/python_projects_tim3la/content_farm/notebooks/voiceover')
         if client:
             for i in range(n):
                 main_db.make_voiceover(type, client)
@@ -278,7 +282,8 @@ class Main_DB:
 
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
-    main_db.load_books()
-    # main_db.make_book_fragment()
-    # ain_db.analyse_fragment()
-    main_db.run_voiceover(4, 1)
+    # main_db.load_books()
+    # # for i in range(5):
+    # #     main_db.make_book_fragment()
+    # #     main_db.analyse_fragment()
+    main_db.run_voiceover(7, 1)
