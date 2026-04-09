@@ -9,7 +9,7 @@
   "enable_internet": "true",
   "dataset_sources": [
     "tim3la/qwen3-base-model",
-    "tim3la/voiceover-voices",
+    "tim3la/voiceover-voices-1",
     "tim3la/voiceover-wheels"
   ],
   "competition_sources": [],

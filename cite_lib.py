@@ -13,6 +13,7 @@ from gradio_client import Client
 from kaggle.api.kaggle_api_extended import KaggleApi
 from kaggle_launcher import run_kaggle_notebook
 from pathlib import Path
+from groq import Groq
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -23,26 +24,29 @@ if os.path.exists(dotenv_path):
 
 yd_token = os.getenv('YANDEX_DISK_API_TOKEN')
 higging_face_token = os.getenv('HUGGING_FACE_API_TOKEN')
+groq_token = os.getenv('GROQ_TOKEN')
 db_name = 'main_db.duckdb'
 # параметры фрагментирования
 fragment_size = 4000
 fragment_overlap = 300
 # Анализ текста
 model_id = "Qwen/Qwen2.5-7B-Instruct"
+model_groq = 'llama-3.1-8b-instant'
 system_prompt_generate = (
     "Ты — эксперт, который вычленяет из текстов интересные высказывания "
     "Твоя задача: найти в тексте интересные высказывания, философские изречения или жизненные наблюдения. "
     "ИНСТРУКЦИЯ:\n"
     "1. Выпиши цитаты(они могут состоять из нескольких предложений), которые могут звучать интересно, философски без контекста, нести какую то отдельную, законченную мысль\n"
-    "2. Эти цитаты должны быть в объеме около 120-150 слов.\n"
+    "2. Эти цитаты должны быть в объеме до 200 слов.\n"
     "3. В ответе пиши только сами цитаты, если их несколько во фрагменте, разделяй их знаком ***\n"
     "4. Не выбирай предложения, которые комбинируют несколько языков. Только один, на котором книга\n"
     "5. Предложения должны быть законченными, нельзя обрывать слова или оставлять предложения незаконченными\n"
+    "6. Все предложения одной цитаты должны быть взаимосвязаны по смыслу\n"
 )
 system_prompt_check = (
     "Проверь этот текст по следующим параметрам:"
-    "Текст представляет собой законченную мысль, он не обрывается на полуслове. Его объем составляет 120 - 150 слов. Текст состоит только из русских слов. Текст содержит в себе интересную мысль, философское изречение или жизненное наблюдение, или рассуждение. Текст понятен без контекста и не оставляет вопросов: о ком или о чем идет речь? В нем не упоминаются непонятные имена."
-    "Если текст соответствует этим требованиям, отредактируй его: убери лишние слова в скобках, какие-то лишние пометки и комментарии, которые бы диктор не стал читать. В результате выведи только этот отредактированный текст"
+    "Текст представляет собой законченную мысль, он не обрывается на полуслове. Объем текста - до 200 слов. Текст состоит только из русских слов. Текст содержит в себе интересную мысль, философское изречение или жизненное наблюдение, или рассуждение. Текст понятен без контекста и не оставляет вопросов: о ком или о чем идет речь? В нем не упоминаются непонятные имена."
+    "Если текст соответствует этим требованиям, отредактируй его: убери лишние слова в скобках, какие-то лишние пометки и комментарии, которые бы диктор не стал читать. В результате выведи только этот отредактированный текст. Только сам текст, без твоих комментариев!"
     "Если текст не соответствует требованиям, выведи только слово NONE"
 )
 # озвучка
@@ -121,7 +125,7 @@ class Main_DB:
             """
             if byte_pos < 0:
                 byte_pos = 0
-            with open(file_path, 'rb') as f:
+            with open(str(file_path), 'rb') as f:
                 f.seek(byte_pos)
                 data = f.read(chunk_bytes)
                 new_pos = f.tell()
@@ -139,7 +143,7 @@ class Main_DB:
             file_name = book_object['link_yd'].split('/')[-1]
             books_path = BASE_DIR / 'temp' / 'books' / file_name
             if not os.path.exists(books_path):
-                self.y.download(book_object['link_yd'], books_path)
+                self.y.download(book_object['link_yd'], str(books_path))
 
             text, next_byte = read_fragment_approx(books_path, book_object['position']-fragment_overlap * 2, fragment_size * 2)
             if text:
@@ -152,8 +156,8 @@ class Main_DB:
                     fragment_file.write(text)
                 self.base.execute('update Fragment set link_yd = ? where id = ?',
                                   [f'app:/fragments/{fragment_id}_{book_object["title"]}.txt', fragment_id])
-                self.y.upload(fragments_path,f'app:/fragments/{fragment_id}_{book_object["title"]}.txt')
-                os.remove(f'{fragments_path}/{fragment_id}_{book_object["title"]}.txt')
+                self.y.upload(str(fragments_path),f'app:/fragments/{fragment_id}_{book_object["title"]}.txt')
+                os.remove(fragments_path)
                 print(f'[ОК] Получен фрагмент {fragment_id}')
                 self.base.execute('update Book set position = ? where id = ?', [next_byte, book_object['id']])
             else:
@@ -174,7 +178,7 @@ class Main_DB:
         fragment_text = ''
         file_name = fragment_object['link_yd'].split('/')[-1]
         fragment_path = BASE_DIR / 'temp' / 'fragments' / file_name
-        self.y.download(fragment_object['link_yd'], fragment_path)
+        self.y.download(fragment_object['link_yd'], str(fragment_path))
         with open(fragment_path, 'r', encoding='utf-8') as fragment_file:
             fragment_text = fragment_file.read()
 
@@ -226,6 +230,66 @@ class Main_DB:
             os.remove(fragment_path)
             return False
 
+    def analyse_fragment_groq(self):
+        df = self.base.execute('select * from Fragment where date_analys is Null limit 1').df()
+        if df.empty:
+            print(f'[Пусто] Нет непроанализированных фрагментов')
+            return
+        fragment_object = df.iloc[0].to_dict()
+        print(f'[Процесс...] Анализируем фрагмент {fragment_object["id"]}')
+        fragment_text = ''
+        file_name = fragment_object['link_yd'].split('/')[-1]
+        fragment_path = BASE_DIR / 'temp' / 'fragments' / file_name
+        self.y.download(fragment_object['link_yd'], str(fragment_path))
+        with open(fragment_path, 'r', encoding='utf-8') as fragment_file:
+            fragment_text = fragment_file.read()
+
+        client = Groq(api_key=groq_token)
+        messages = [
+            {"role": "system", "content": system_prompt_generate},
+            {"role": "user", "content": f"Текст для анализа:\n\n{fragment_text}"}
+        ]
+        try:
+            response = client.chat.completions.create(
+                model=model_groq,
+                messages=messages,
+                temperature=0.1,  # Низкая температура для точного извлечения без галлюцинаций
+            )
+            result = response.choices[0].message.content.strip()
+            if result != 'NONE':
+                cites_list = result.split('***')
+                print(f'[ОК] Получен результат для фрагмента: {len(cites_list)} цитат. Проверяем их...')
+                for i in range(len(cites_list)):
+                    if cites_list[i].strip():
+                        try:
+                            messages = [
+                                {"role": "system", "content": system_prompt_check},
+                                {"role": "user", "content": f"Текст для анализа:\n\n{cites_list[i]}"}
+                            ]
+                            response = client.chat.completions.create(
+                                model=model_groq,
+                                messages=messages,
+                                temperature=0.1,  # Низкая температура для точного извлечения без галлюцинаций
+                            )
+                            result_check = response.choices[0].message.content.strip()
+                            if result_check == 'NONE':
+                                print(f'[ОК] Цитата {i+1} из фрагмента {fragment_object["id"]} отвергнута: {result_check}')
+                            else:
+                                quote_id = self.base.execute('insert into Quote(fragment_id, text, size, date_create, date_use) values (?, ?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, NULL) returning id', [fragment_object['id'], result_check, len(result_check.split())])
+                                quote_id = quote_id.fetchone()[0]
+                                print(f'[ОК] Цитата {i + 1}({quote_id}) из фрагмента {fragment_object["id"]} принята: {result_check}')
+                        except Exception as e:
+                            print(f'[Ошибка] Ошибка при обращении к API: {e}')
+
+            else:
+                print(f'[ОК] Нет цитат в {fragment_object["id"]}: {result}')
+            self.base.execute('update Fragment set date_analys = NOW()::TIMESTAMP::TIMESTAMP_S where id = ?', [fragment_object['id']])
+            os.remove(fragment_path)
+        except Exception as e:
+            print(f'[Ошибка] Ошибка при обращении к API: {e}')
+            os.remove(fragment_path)
+            return False
+
     def make_voiceover(self, voiceover_type, client):
         print(f'[Процесс...] Создаем озвучку цитаты')
         df = self.base.execute('''
@@ -265,8 +329,11 @@ class Main_DB:
                     else:
                         print("[!!!] Критическая ошибка связи.")
             print(f"[ПК] Создана озвучка {result}")
-            self.base.execute('update Voiceover set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?', [f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}', voiceover_id])
-            self.base.execute('update Quote set date_use = NOW()::TIMESTAMP::TIMESTAMP_S where id = ?', [quote_object['id']])
+            if self.y.exists(f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}'):
+                self.base.execute('update Voiceover set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?', [f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}', voiceover_id])
+            else:
+                self.base.execute('delete from Voiceover where id = ?', [voiceover_id])
+                print(f"[Ошибка] Файл отсутствует на яндекс-диске: {e}")
         except Exception as e:
             self.base.execute('delete from Voiceover where id = ?', [voiceover_id])
             print(f"[Ошибка] {e}")
@@ -282,8 +349,8 @@ class Main_DB:
 
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
-    # main_db.load_books()
-    # # for i in range(5):
-    # #     main_db.make_book_fragment()
-    # #     main_db.analyse_fragment()
+    main_db.load_books()
+    # for i in range(3):
+    #     main_db.make_book_fragment()
+    #     main_db.analyse_fragment_groq()
     main_db.run_voiceover(7, 1)

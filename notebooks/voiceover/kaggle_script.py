@@ -13,35 +13,99 @@ def log(msg):
     print(f"[DEBUG] {msg}", flush=True)
 
 
+# def initial_setup():
+#     log("Step 1: Installing System and Python dependencies...")
+#
+#     subprocess.check_call(['apt-get', 'update', '-q'])
+#     subprocess.check_call(['apt-get', 'install', '-y', 'sox', 'libsox-fmt-all', '-q'])
+#
+#     # subprocess.check_call([
+#     #     sys.executable, "-m", "pip", "uninstall",
+#     #     "torch", "torchvision", "torchaudio", "transformers", "accelerate", "onnxruntime-gpu", "-y"
+#     # ])
+#     #
+#     # log("Installing heavy wheels...")
+#     # subprocess.check_call([
+#     #     sys.executable, "-m", "pip", "install",
+#     #     "torch==2.4.0",
+#     #     "torchvision==0.19.0",
+#     #     "onnxruntime-gpu==1.24.4",
+#     #     "--no-index", "--find-links", "/kaggle/input/voiceover-wheels/wheels",
+#     #     "-q"
+#     # ])
+#
+#
+#     subprocess.check_call([
+#         sys.executable, "-m", "pip", "install",
+#         "yadisk", "qwen-tts", "gradio", "--no-deps"  # --no-deps запрещает ему лезть в зависимости
+#     ])
+#
+#
+#     subprocess.check_call([
+#         sys.executable, "-m", "pip", "install",
+#         "torch==2.4.0", "onnxruntime-gpu==1.24.4",
+#         "--no-index", "--find-links", "/kaggle/input/voiceover-wheels/wheels"
+#     ])
+#
+#     log("Installing compatible torchaudio...")
+#     subprocess.check_call([
+#         sys.executable, "-m", "pip", "install",
+#         "torchaudio==2.4.0+cu121",
+#         "transformers>=4.48.0",
+#         "gradio",
+#         "yadisk",
+#         "qwen-tts",
+#         "accelerate",
+#         "soundfile",
+#         "--extra-index-url", "https://download.pytorch.org/whl/cu121",
+#         "-q"
+#     ])
+#
+#     log("Step 1: Done. Environment ready.")
+
 def initial_setup():
     log("Step 1: Installing System and Python dependencies...")
+
 
     subprocess.check_call(['apt-get', 'update', '-q'])
     subprocess.check_call(['apt-get', 'install', '-y', 'sox', 'libsox-fmt-all', '-q'])
 
+
+    log("Purging incompatible versions...")
     subprocess.check_call([
         sys.executable, "-m", "pip", "uninstall",
-        "torch", "torchvision", "torchaudio", "transformers", "accelerate", "-y"
+        "torch", "torchvision", "torchaudio", "transformers", "accelerate", "-y", "-q"
     ])
 
-    WHEELS_PATH = "/kaggle/input/voiceover-wheels/wheels"
 
-
+    log("Installing wheels from dataset...")
     subprocess.check_call([
         sys.executable, "-m", "pip", "install",
-        "--no-index", "--find-links", WHEELS_PATH,
-        "torch", "torchvision", "torchaudio", "transformers",
-        "gradio", "yadisk", "qwen-tts", "accelerate", "soundfile",
-        "onnxruntime-gpu", "flash-attn", "sox"  # добавил python-sox сюда же
+        "torch==2.4.0",
+        "torchvision==0.19.0",
+        "onnxruntime-gpu==1.24.4",
+        "--no-index", "--find-links", "/kaggle/input/voiceover-wheels/wheels",
+        "-q"
     ])
 
-    log("Step 1: Done. Environment ready.")
+    # 4. ДОСТАВЛЯЕМ ОСТАЛЬНОЕ
+    log("Installing rest of dependencies...")
+    subprocess.check_call([
+        sys.executable, "-m", "pip", "install",
+        "torchaudio==2.4.0+cu121",
+        "transformers>=4.48.0",
+        "gradio", "yadisk", "qwen-tts", "accelerate", "soundfile",
+        "--extra-index-url", "https://download.pytorch.org/whl/cu121",
+        "-q"
+    ])
+
+    log("Step 1: Done. Environment is finally clean and ready.")
 
 
 if __name__ == '__main__':
     initial_setup()
 
-    # Импорты ТОЛЬКО после установки
+
     import torch
     import gradio as gr
     import yadisk
@@ -62,11 +126,22 @@ if __name__ == '__main__':
 
 
     def tts_process(text_to_speak, voiceover_id, quote_id, voiceover_type, REF_TEXT):
-        # Используем глобальный VOICES_DICT
-        voice_file = VOICES_DICT.get(int(voiceover_type), "qenat_voice_3.wav")
-        REF_WAV = f"/kaggle/input/datasets/tim3la/voiceover-voices/{voice_file}"
 
-        log(f"🎤 make: {quote_id} with voice {voice_file}")
+        import os
+
+        print("=== FILES ===")
+        try:
+            datasets = os.listdir('/kaggle/input/')
+            if not datasets:
+                print("❌ null")
+            else:
+                for ds in datasets:
+                    print(f"📁 /kaggle/input/{ds}")
+        except Exception as e:
+            print(f"error {e}")
+
+        REF_WAV = f"/kaggle/input/voiceover-voices-1/{VOICES_DICT[voiceover_type]}"
+        log(f"🎤 make: {quote_id} with voice ")
         try:
             wavs, sr = model.generate_voice_clone(
                 text=text_to_speak,
