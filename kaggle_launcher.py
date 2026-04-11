@@ -98,3 +98,4 @@ def run_kaggle_notebook(url_file_name, notebook, json_file_path):
                     print("[!!!] Критическая ошибка связи.")
 
         return client
+

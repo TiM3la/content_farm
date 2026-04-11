@@ -14,5 +14,5 @@
   ],
   "competition_sources": [],
   "kernel_sources": [],
-  "accelerator": "GPU"
+  "accelerator": "nvidiaTeslaT4"
 }

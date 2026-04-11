@@ -12,57 +12,6 @@ VOICES_DICT = {
 def log(msg):
     print(f"[DEBUG] {msg}", flush=True)
 
-
-# def initial_setup():
-#     log("Step 1: Installing System and Python dependencies...")
-#
-#     subprocess.check_call(['apt-get', 'update', '-q'])
-#     subprocess.check_call(['apt-get', 'install', '-y', 'sox', 'libsox-fmt-all', '-q'])
-#
-#     # subprocess.check_call([
-#     #     sys.executable, "-m", "pip", "uninstall",
-#     #     "torch", "torchvision", "torchaudio", "transformers", "accelerate", "onnxruntime-gpu", "-y"
-#     # ])
-#     #
-#     # log("Installing heavy wheels...")
-#     # subprocess.check_call([
-#     #     sys.executable, "-m", "pip", "install",
-#     #     "torch==2.4.0",
-#     #     "torchvision==0.19.0",
-#     #     "onnxruntime-gpu==1.24.4",
-#     #     "--no-index", "--find-links", "/kaggle/input/voiceover-wheels/wheels",
-#     #     "-q"
-#     # ])
-#
-#
-#     subprocess.check_call([
-#         sys.executable, "-m", "pip", "install",
-#         "yadisk", "qwen-tts", "gradio", "--no-deps"  # --no-deps запрещает ему лезть в зависимости
-#     ])
-#
-#
-#     subprocess.check_call([
-#         sys.executable, "-m", "pip", "install",
-#         "torch==2.4.0", "onnxruntime-gpu==1.24.4",
-#         "--no-index", "--find-links", "/kaggle/input/voiceover-wheels/wheels"
-#     ])
-#
-#     log("Installing compatible torchaudio...")
-#     subprocess.check_call([
-#         sys.executable, "-m", "pip", "install",
-#         "torchaudio==2.4.0+cu121",
-#         "transformers>=4.48.0",
-#         "gradio",
-#         "yadisk",
-#         "qwen-tts",
-#         "accelerate",
-#         "soundfile",
-#         "--extra-index-url", "https://download.pytorch.org/whl/cu121",
-#         "-q"
-#     ])
-#
-#     log("Step 1: Done. Environment ready.")
-
 def initial_setup():
     log("Step 1: Installing System and Python dependencies...")
 
@@ -101,6 +50,9 @@ def initial_setup():
 
     log("Step 1: Done. Environment is finally clean and ready.")
 
+def stop_server():
+    print("close work...")
+    os._exit(0) # Жесткий выход, который остановит ядро
 
 if __name__ == '__main__':
     initial_setup()

@@ -42,12 +42,47 @@ system_prompt_generate = (
     "4. Не выбирай предложения, которые комбинируют несколько языков. Только один, на котором книга\n"
     "5. Предложения должны быть законченными, нельзя обрывать слова или оставлять предложения незаконченными\n"
     "6. Все предложения одной цитаты должны быть взаимосвязаны по смыслу\n"
+    "7. предложения в тексте не повторяются"
 )
 system_prompt_check = (
     "Проверь этот текст по следующим параметрам:"
-    "Текст представляет собой законченную мысль, он не обрывается на полуслове. Объем текста - до 200 слов. Текст состоит только из русских слов. Текст содержит в себе интересную мысль, философское изречение или жизненное наблюдение, или рассуждение. Текст понятен без контекста и не оставляет вопросов: о ком или о чем идет речь? В нем не упоминаются непонятные имена."
+    "Текст представляет собой законченную мысль, он не обрывается на полуслове. Объем текста - до 200 слов. Текст состоит только из русских слов. Текст содержит в себе интересную мысль, философское изречение или жизненное наблюдение, или рассуждение. Текст понятен без контекста и не оставляет вопросов: о ком или о чем идет речь? В нем не упоминаются непонятные имена. предложения в тексте не повторяются"
     "Если текст соответствует этим требованиям, отредактируй его: убери лишние слова в скобках, какие-то лишние пометки и комментарии, которые бы диктор не стал читать. В результате выведи только этот отредактированный текст. Только сам текст, без твоих комментариев!"
     "Если текст не соответствует требованиям, выведи только слово NONE"
+)
+system_prompt_img = (
+    "Сгенерируй промпт для картинки в стиле dark fantasy medieval. Не забудь описать окружение: где происходит действие, какое время суток, разнообразь деталями. Вот примеры: "
+    "A regal figure draped in a flowing purple robe stands atop a rugged, rocky outcropping, gazing out at a mystical, glowing forest under a starry night sky."
+    "A lone warrior clad in dark, ornate armor kneels before a colossal, ancient stone statue in a vast, open plain at dusk."
+    "A mysterious, hooded figure levitates at the center of a glowing, ethereal portal, surrounded by swirling clouds of purple and blue."
+    "A powerful sorceress stands at the edge of a turbulent, stormy sea, her long, flowing hair and dark robes whipped by the wind."
+    "A lone, shadowy figure walks through a desolate, barren landscape toward a massive, glowing blue monolith on the horizon."
+    "A group of robed figures gather around a glowing, crystalline orb in a dark, damp cavern, the walls lined with ancient, mysterious symbols."
+    "A muscular, horned figure clad in dark, metallic armor stands atop a mountain of skulls, gazing out at a fiery, apocalyptic landscape."
+    "A lone, hooded figure sits cross-legged on a rocky outcropping, surrounded by a halo of soft, white light in a dark, mystical forest."
+    "A colossal, stone statue of a long-forgotten king stands in a vast, open plain, the sky above a deep, burning red."
+    "A mysterious, glowing artifact floats in the air before a lone, robed figure, the background a swirling vortex of purple and blue."
+    "A towering sorceress in a dark cloak stands amidst a mystical forest at dusk with glowing, ethereal green trees in the background, radiating an enchanting aura."
+    "A skeletal king wearing a golden crown sits on a stone throne with intricate carvings, clad in a tattered, black red-edged cloak, surrounded by shadows and eerie red lanterns hanging from a dark, high ceiling."
+    "A dark knight in ancient, worn armor stands at the edge of a mountain cliff under a full moon, facing an ethereal, shimmering figure emerging from swirling clouds."
+    "An armor-clad figure adorned in a heavily feathered helmet stands atop a narrow bridge crossing an ancient, arched bridge amidst a strange and ominous swirling, night sky of clouds and constellations."
+    "Two shadowy figures emerge from the misty veil that envelops their forms in an old, ruined cathedral where a chandelier, held by a dark form, casts flickering candlelight, alongside falling stars illuminating through the long archways behind the structure."
+    "A red-cloaked figure kneels in front of a massive, twisted tree, adorned with strange symbols, with an otherworldly, blue glowing forest surrounding them."
+    "A robed figure with glowing blue eyes stands at the edge of a stormy sea, where a colossal stone statue emerges from the turbulent waves under a dark, stormy sky."
+    "A mysterious figure stands on a dark, ancient, ruined stone platform amidst a celestial backdrop of stars and glowing nebulas, radiating an ethereal aura, while surrounded by winged, ethereal creatures."
+    "A proud warrior, clad in a damaged suit of armor with a massive boar emblem, stands before an enormous, rusted iron gate with intricate details of legendary beasts under a fiery red sky."
+    "A woman in a hooded mantle stands on a dark and deserted docks at midnight, illuminated by a row of dim, yellowish dock lights with the dark shapes of silhouette buildings in the background and a silhouette of a mighty dragon emerging from dark waves under an ominous night sky."
+    "A hooded mage stands atop a twisted, ancient tree, surrounded by dark purple energy and whispering leaves under a night sky with glowing crescent moons."
+    "A warrior in golden armor stands at the edge of a stormy ocean, looking out at two giant sea serpents with glowing azurite eyes breaching the waves beneath a lightning-filled sky."
+    "A lone figure cloaked in shadows stands before an immense, monolithic door set into a dark, crystalline mountain. The entrance is framed by the ethereal glow of hovering purple runes under the light of a full moon."
+    "A dark sorceress with long black hair sits on a throne amidst a garden of glowing, iridescent flowers. A halo of soft blue light surrounds her, casting a mystical ambiance under a clear night sky."
+    "A group of robed figures stand in a huddled circle around a flickering lantern, deep within a cavernous underground chamber. The surroundings are shrouded in darkness, illuminated by glowing glowing green veins of crystals under the eerie light."
+    "A lone knight in silver armor stands atop a windswept mountain peak, gazing out at a stormy sky filled with glowing purple clouds and lightning. A glowing blue sword lies at their feet."
+    "A figure shrouded in a dark, hooded cloak stands before a glowing portal set into the trunk of an ancient, gnarled tree. The air around them is filled with swirling, ethereal mist under a starry night sky."
+    "A massive, four-armed warrior stands at the top of a set of ancient stairs, leading down to a dark, mysterious temple. The air is filled with a haze of green smoke under the light of a glowing full moon."
+    "A group of shadowy figures gather around a glowing, crystal orb set into the ground of a dark forest. The surrounding trees seem to lean inward, as if listening to the whispers of the orb under the faint light of a crescent moon."
+    "A lone figure in a flowing white robe stands at the edge of a serene, glowing lake. The water's surface is adorned with a pattern of intricate, ethereal runes that seem to pulse with a soft blue light under the starry night sky."
+    "Придумай на их основе что-то подобное. Напиши на английском языке. Не добавляй свои комментарии, напиши только промпт. Напиши только один промпт. ТО есть одна сцена"
 )
 # озвучка
 voiceover_types = {
@@ -63,6 +98,7 @@ class Main_DB:
         print(self.make_fragment_table())
         print(self.make_quote_table())
         print(self.make_voiceove_table())
+        print(self.make_prompt_img_table())
 
     def make_book_table(self):
         try:
@@ -98,6 +134,15 @@ class Main_DB:
             return '[ОК] Таблица Voiceover создана'
         except Exception as e:
             return f'[!] Ошибка! Таблица Voiceover не создана. {e}'
+
+    def make_prompt_img_table(self):
+        try:
+            print(f'[Процесс...] Создаем таблицу Prompt_img')
+            self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_prompt_img_id START 1;")
+            self.base.execute("create table if not exists Prompt_img (id integer primary key default nextval('seq_prompt_img_id'), text varchar, size integer,  date_create TIMESTAMP_S, date_last_use TIMESTAMP_S, use_number integer)")
+            return '[ОК] Таблица Prompt_img создана'
+        except Exception as e:
+            return f'[!] Ошибка! Таблица Prompt_img не создана. {e}'
 
     def load_books(self):
         try:
@@ -329,7 +374,7 @@ class Main_DB:
                     else:
                         print("[!!!] Критическая ошибка связи.")
             print(f"[ПК] Создана озвучка {result}")
-            if self.y.exists(f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}'):
+            if self.y.exists(f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}.wav'):
                 self.base.execute('update Voiceover set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?', [f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}', voiceover_id])
             else:
                 self.base.execute('delete from Voiceover where id = ?', [voiceover_id])
@@ -345,12 +390,33 @@ class Main_DB:
                 main_db.make_voiceover(type, client)
         else:
             print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
+        client.predict(api_name="/stop_server")
+
+    def make_img_prompt(self):
+        print(f'[Процесс...] Генерируем промпт для картинки')
+        client = Groq(api_key=groq_token)
+        messages = [
+            {"role": "system", "content": system_prompt_img},
+        ]
+        try:
+            response = client.chat.completions.create(
+                model=model_groq,
+                messages=messages,
+                temperature=0.5,  # Низкая температура для точного извлечения без галлюцинаций
+            )
+            result = response.choices[0].message.content.strip()
+            print(f'[Процесс...] Промпт: {result}')
+            self.base.execute('insert into Prompt_img(text, size, date_create, use_number) values (?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, 0)', [result, len(result)])
+        except Exception as e:
+            print(f'[Ошибка] Проблема генерации промпта: {e}')
 
 
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
-    main_db.load_books()
-    # for i in range(3):
+    # main_db.load_books()
+    # for i in range(7):
     #     main_db.make_book_fragment()
     #     main_db.analyse_fragment_groq()
-    main_db.run_voiceover(7, 1)
+    # main_db.run_voiceover(7, 1)
+    for i in range(10):
+        main_db.make_img_prompt()
