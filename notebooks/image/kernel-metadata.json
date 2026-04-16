@@ -1,0 +1,18 @@
+{
+  "id": "tim3la/image-1",
+  "title": "image-1",
+  "code_file": "kaggle_script.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "tim3la/sdxl-model",
+    "tim3la/image-wheels",
+    "tim3la/my-lora-1"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "accelerator": "NvidiaTeslaT4"
+}

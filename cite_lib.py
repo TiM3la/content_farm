@@ -51,38 +51,139 @@ system_prompt_check = (
     "Если текст не соответствует требованиям, выведи только слово NONE"
 )
 system_prompt_img = (
-    "Сгенерируй промпт для картинки в стиле dark fantasy medieval. Не забудь описать окружение: где происходит действие, какое время суток, разнообразь деталями. Вот примеры: "
-    "A regal figure draped in a flowing purple robe stands atop a rugged, rocky outcropping, gazing out at a mystical, glowing forest under a starry night sky."
-    "A lone warrior clad in dark, ornate armor kneels before a colossal, ancient stone statue in a vast, open plain at dusk."
-    "A mysterious, hooded figure levitates at the center of a glowing, ethereal portal, surrounded by swirling clouds of purple and blue."
-    "A powerful sorceress stands at the edge of a turbulent, stormy sea, her long, flowing hair and dark robes whipped by the wind."
-    "A lone, shadowy figure walks through a desolate, barren landscape toward a massive, glowing blue monolith on the horizon."
-    "A group of robed figures gather around a glowing, crystalline orb in a dark, damp cavern, the walls lined with ancient, mysterious symbols."
-    "A muscular, horned figure clad in dark, metallic armor stands atop a mountain of skulls, gazing out at a fiery, apocalyptic landscape."
-    "A lone, hooded figure sits cross-legged on a rocky outcropping, surrounded by a halo of soft, white light in a dark, mystical forest."
-    "A colossal, stone statue of a long-forgotten king stands in a vast, open plain, the sky above a deep, burning red."
-    "A mysterious, glowing artifact floats in the air before a lone, robed figure, the background a swirling vortex of purple and blue."
-    "A towering sorceress in a dark cloak stands amidst a mystical forest at dusk with glowing, ethereal green trees in the background, radiating an enchanting aura."
-    "A skeletal king wearing a golden crown sits on a stone throne with intricate carvings, clad in a tattered, black red-edged cloak, surrounded by shadows and eerie red lanterns hanging from a dark, high ceiling."
-    "A dark knight in ancient, worn armor stands at the edge of a mountain cliff under a full moon, facing an ethereal, shimmering figure emerging from swirling clouds."
-    "An armor-clad figure adorned in a heavily feathered helmet stands atop a narrow bridge crossing an ancient, arched bridge amidst a strange and ominous swirling, night sky of clouds and constellations."
-    "Two shadowy figures emerge from the misty veil that envelops their forms in an old, ruined cathedral where a chandelier, held by a dark form, casts flickering candlelight, alongside falling stars illuminating through the long archways behind the structure."
-    "A red-cloaked figure kneels in front of a massive, twisted tree, adorned with strange symbols, with an otherworldly, blue glowing forest surrounding them."
-    "A robed figure with glowing blue eyes stands at the edge of a stormy sea, where a colossal stone statue emerges from the turbulent waves under a dark, stormy sky."
-    "A mysterious figure stands on a dark, ancient, ruined stone platform amidst a celestial backdrop of stars and glowing nebulas, radiating an ethereal aura, while surrounded by winged, ethereal creatures."
-    "A proud warrior, clad in a damaged suit of armor with a massive boar emblem, stands before an enormous, rusted iron gate with intricate details of legendary beasts under a fiery red sky."
-    "A woman in a hooded mantle stands on a dark and deserted docks at midnight, illuminated by a row of dim, yellowish dock lights with the dark shapes of silhouette buildings in the background and a silhouette of a mighty dragon emerging from dark waves under an ominous night sky."
-    "A hooded mage stands atop a twisted, ancient tree, surrounded by dark purple energy and whispering leaves under a night sky with glowing crescent moons."
-    "A warrior in golden armor stands at the edge of a stormy ocean, looking out at two giant sea serpents with glowing azurite eyes breaching the waves beneath a lightning-filled sky."
-    "A lone figure cloaked in shadows stands before an immense, monolithic door set into a dark, crystalline mountain. The entrance is framed by the ethereal glow of hovering purple runes under the light of a full moon."
-    "A dark sorceress with long black hair sits on a throne amidst a garden of glowing, iridescent flowers. A halo of soft blue light surrounds her, casting a mystical ambiance under a clear night sky."
-    "A group of robed figures stand in a huddled circle around a flickering lantern, deep within a cavernous underground chamber. The surroundings are shrouded in darkness, illuminated by glowing glowing green veins of crystals under the eerie light."
-    "A lone knight in silver armor stands atop a windswept mountain peak, gazing out at a stormy sky filled with glowing purple clouds and lightning. A glowing blue sword lies at their feet."
-    "A figure shrouded in a dark, hooded cloak stands before a glowing portal set into the trunk of an ancient, gnarled tree. The air around them is filled with swirling, ethereal mist under a starry night sky."
-    "A massive, four-armed warrior stands at the top of a set of ancient stairs, leading down to a dark, mysterious temple. The air is filled with a haze of green smoke under the light of a glowing full moon."
-    "A group of shadowy figures gather around a glowing, crystal orb set into the ground of a dark forest. The surrounding trees seem to lean inward, as if listening to the whispers of the orb under the faint light of a crescent moon."
-    "A lone figure in a flowing white robe stands at the edge of a serene, glowing lake. The water's surface is adorned with a pattern of intricate, ethereal runes that seem to pulse with a soft blue light under the starry night sky."
-    "Придумай на их основе что-то подобное. Напиши на английском языке. Не добавляй свои комментарии, напиши только промпт. Напиши только один промпт. ТО есть одна сцена"
+    "Сгенерируй промпт для атмосферной картинки в стиле мрачной средневековой фантастики. Четко следуй следующей текстуре промпта: "
+    "слово 'dark-fantazy-medieval-aesthetics-style.', кто? что делает? около чего? (не обязательно) в какое время суток? в какой местности? что находится на фоне? сторона, с которой вид (например сзади, сбоку"
+    "спереди и т.д.) дальность вида (близкий, далекий, средний и т.д). Цвет освещения"
+    "Полученный промпт не должен быть больше, чем 354 символа. Для описания используй факты, не используй оценочные прилагательные. участником картинки могут быть: рыцари, принцессы, колдуны, скелеты, мифические существа, животные и так далее"
+    "Вот примеры:"
+    """dark-fantazy-medieval-aesthetics-style. Knights sitting by a fire at night in the forest, with the moon and a castle in the background, front view close. The lighting is turquoise
+
+dark-fantazy-medieval-aesthetics-style. A knight sitting on a wasteland at night, with a bright starry sky in the background, front view. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. Wizards stand at sunset on the edge of a cliff, with a castle in the background, a bright sky, mountains, and fog. view far from behind. The lighting is purple-yellow
+
+dark-fantazy-medieval-aesthetics-style. A knight on a horse is walking on a lawn in the forest in the evening, with a castle, fields, fog, and trees in the background. View far from behind. The lighting is dark green
+
+dark-fantazy-medieval-aesthetics-style. Knight lying at night on a stone near flowers near a tree in the forest, at night, in the background fog, mountains, red sky. Front view close. The lighting is red
+
+dark-fantazy-medieval-aesthetics-style. a knight on a horse is running near a mountain of skeletons at night among the mountains, with a castle, fog, glow, mountains, and trees in the background. the view from behind is far away. The lighting is green
+
+dark-fantazy-medieval-aesthetics-style. a knight on a horse is standing near the water at night in the middle of a forest, with a glowing moon and trees in the background. the view from the front is far away
+
+dark-fantazy-medieval-aesthetics-style.wizards stand high in the mountains during the day, with the sun and mountains in the background. side view far away. The lighting is turquoise
+
+dark-fantazy-medieval-aesthetics-style. a wizard stands near an igloo in the mountains during the day in winter, with a mountain in the background. side view far away. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style.a wizard is sitting in a castle window at night, with a mountain, moon, castle, city, and fog in the background. the view from behind is far away. The lighting is dark blue
+
+dark-fantazy-medieval-aesthetics-style. A knight lies in a clearing at night, with a bright starry sky and a glow in the background. Close-up view from the side. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. castle near the abyss at sunset, with a thunderstorm and fog in the background. the view from the front is far away. The lighting is purple-pink
+
+dark-fantazy-medieval-aesthetics-style. a knight climbs the stairs to the castle at night in the thicket, with the castle in the background and fog. the view from behind is far away. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. wizards walking in the mountain forest to the castle in the evening, castle background, big moon, fog. view from behind far away. The lighting is blue-orange
+
+dark-fantazy-medieval-aesthetics-style.castle on the mountaintop at sunset, with bright clouds in the background. the view from the front is far away. the lighting is green-orange
+
+dark-fantazy-medieval-aesthetics-style.castle in the middle of the mountains at night in winter, with the moon in the background. front view far away.
+
+dark-fantazy-medieval-aesthetics-style. a skeleton standing in a cave in the afternoon near rocks, with rocks and trees in the background. close-up view from the front.  The lighting is turquoise
+
+dark-fantazy-medieval-aesthetics-style. A knight and a princess are standing in a castle near flowers in the afternoon. Flowers are in the background. Close-up view from the side. The lighting is yellow
+
+dark-fantazy-medieval-aesthetics-style. a knight holds a princess in the evening near the grass. in the background is a forest. a close-up view from the front
+
+dark-fantazy-medieval-aesthetics-style. a wizard is sitting near a river in the forest in the evening. in the background, there is a castle, trees, and fog. the view from the front is far away. the lighting is yellow-green
+
+dark-fantazy-medieval-aesthetics-style. a wizard is sitting near a river in the forest in the evening. in the background, there is a castle, trees, a mountain, and fog. the view from the front is far away. the lighting is yellow-green
+
+dark-fantazy-medieval-aesthetics-style. castle among the mountains at night, with a glowing moon in the background. front view far away. The lighting is red
+
+dark-fantazy-medieval-aesthetics-style. a skeleton sitting on a staircase near a candle at night, with a castle, mountains, fog, glow, and a distant view in the background. The lighting is turquoise
+
+dark-fantazy-medieval-aesthetics-style. a knight is sitting near a lake in a swamp at sunset, with a castle in the background, a glowing sky, trees, fog, and a close view from the front. The lighting is pink. 
+
+dark-fantazy-medieval-aesthetics-style. castle in the mountains near a river at night, with the moon and mountains in the background. front view far away. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. house in the forest at night near a path, background trees, fog, view from the front far away. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. a girl lying on a dragon near the rocks in the evening, against the background of a mountain, a thunderstorm, a glow, a close view from the front. The lighting is yellow
+
+dark-fantazy-medieval-aesthetics-style.a knight holds a cat near flowers in the afternoon, with a forest, flowers, and clouds in the background. close-up view from the front. The lighting is yellow
+
+dark-fantazy-medieval-aesthetics-style.a knight and a girl sitting on a mountain at night in winter, with a mountain in the background, a bright sky, and a close view from behind. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. a knight and a girl walking through a flower field in the afternoon, with a forest, a castle, and clouds in the background. close-up view from behind.The lighting is white"""
+    "На основе этих примеров придумай что то подобное. Экспериментируй с цветами и сценами. Напиши на английском языке. Не добавляй свои комментарии, напиши только промпт. Напиши только один промпт, То есть одна сцена"
+)
+
+system_prompt_img_many = (
+    "Сгенерируй 5 промптов для атмосферной картинки в стиле мрачной средневековой фантастики. Четко следуй следующей текстуре промпта: "
+    "слово 'dark-fantazy-medieval-aesthetics-style.', кто? что делает? около чего? (не обязательно) в какое время суток? в какой местности? что находится на фоне? сторона, с которой вид (например сзади, сбоку"
+    "спереди и т.д.) дальность вида (близкий, далекий, средний и т.д). Цвет освещения"
+    "Полученные промпты не должен быть больше, чем 354 символа каждый. Для описания используй факты, не используй оценочные прилагательные. участником картинки могут быть: рыцари, принцессы, колдуны, скелеты, мифические существа, животные и так далее"
+    "Вот примеры:"
+    """dark-fantazy-medieval-aesthetics-style. Knights sitting by a fire at night in the forest, with the moon and a castle in the background, front view close. The lighting is turquoise
+
+dark-fantazy-medieval-aesthetics-style. A knight sitting on a wasteland at night, with a bright starry sky in the background, front view. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. Wizards stand at sunset on the edge of a cliff, with a castle in the background, a bright sky, mountains, and fog. view far from behind. The lighting is purple-yellow
+
+dark-fantazy-medieval-aesthetics-style. A knight on a horse is walking on a lawn in the forest in the evening, with a castle, fields, fog, and trees in the background. View far from behind. The lighting is dark green
+
+dark-fantazy-medieval-aesthetics-style. Knight lying at night on a stone near flowers near a tree in the forest, at night, in the background fog, mountains, red sky. Front view close. The lighting is red
+
+dark-fantazy-medieval-aesthetics-style. a knight on a horse is running near a mountain of skeletons at night among the mountains, with a castle, fog, glow, mountains, and trees in the background. the view from behind is far away. The lighting is green
+
+dark-fantazy-medieval-aesthetics-style. a knight on a horse is standing near the water at night in the middle of a forest, with a glowing moon and trees in the background. the view from the front is far away
+
+dark-fantazy-medieval-aesthetics-style.wizards stand high in the mountains during the day, with the sun and mountains in the background. side view far away. The lighting is turquoise
+
+dark-fantazy-medieval-aesthetics-style. a wizard stands near an igloo in the mountains during the day in winter, with a mountain in the background. side view far away. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style.a wizard is sitting in a castle window at night, with a mountain, moon, castle, city, and fog in the background. the view from behind is far away. The lighting is dark blue
+
+dark-fantazy-medieval-aesthetics-style. A knight lies in a clearing at night, with a bright starry sky and a glow in the background. Close-up view from the side. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. castle near the abyss at sunset, with a thunderstorm and fog in the background. the view from the front is far away. The lighting is purple-pink
+
+dark-fantazy-medieval-aesthetics-style. a knight climbs the stairs to the castle at night in the thicket, with the castle in the background and fog. the view from behind is far away. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. wizards walking in the mountain forest to the castle in the evening, castle background, big moon, fog. view from behind far away. The lighting is blue-orange
+
+dark-fantazy-medieval-aesthetics-style.castle on the mountaintop at sunset, with bright clouds in the background. the view from the front is far away. the lighting is green-orange
+
+dark-fantazy-medieval-aesthetics-style.castle in the middle of the mountains at night in winter, with the moon in the background. front view far away.
+
+dark-fantazy-medieval-aesthetics-style. a skeleton standing in a cave in the afternoon near rocks, with rocks and trees in the background. close-up view from the front.  The lighting is turquoise
+
+dark-fantazy-medieval-aesthetics-style. A knight and a princess are standing in a castle near flowers in the afternoon. Flowers are in the background. Close-up view from the side. The lighting is yellow
+
+dark-fantazy-medieval-aesthetics-style. a knight holds a princess in the evening near the grass. in the background is a forest. a close-up view from the front
+
+dark-fantazy-medieval-aesthetics-style. a wizard is sitting near a river in the forest in the evening. in the background, there is a castle, trees, and fog. the view from the front is far away. the lighting is yellow-green
+
+dark-fantazy-medieval-aesthetics-style. a wizard is sitting near a river in the forest in the evening. in the background, there is a castle, trees, a mountain, and fog. the view from the front is far away. the lighting is yellow-green
+
+dark-fantazy-medieval-aesthetics-style. castle among the mountains at night, with a glowing moon in the background. front view far away. The lighting is red
+
+dark-fantazy-medieval-aesthetics-style. a skeleton sitting on a staircase near a candle at night, with a castle, mountains, fog, glow, and a distant view in the background. The lighting is turquoise
+
+dark-fantazy-medieval-aesthetics-style. a knight is sitting near a lake in a swamp at sunset, with a castle in the background, a glowing sky, trees, fog, and a close view from the front. The lighting is pink. 
+
+dark-fantazy-medieval-aesthetics-style. castle in the mountains near a river at night, with the moon and mountains in the background. front view far away. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. house in the forest at night near a path, background trees, fog, view from the front far away. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. a girl lying on a dragon near the rocks in the evening, against the background of a mountain, a thunderstorm, a glow, a close view from the front. The lighting is yellow
+
+dark-fantazy-medieval-aesthetics-style.a knight holds a cat near flowers in the afternoon, with a forest, flowers, and clouds in the background. close-up view from the front. The lighting is yellow
+
+dark-fantazy-medieval-aesthetics-style.a knight and a girl sitting on a mountain at night in winter, with a mountain in the background, a bright sky, and a close view from behind. The lighting is blue
+
+dark-fantazy-medieval-aesthetics-style. a knight and a girl walking through a flower field in the afternoon, with a forest, a castle, and clouds in the background. close-up view from behind.The lighting is white"""
+    "На основе этих примеров придумай что то подобное. Экспериментируй с цветами и сценами. Напиши на английском языке. Не добавляй свои комментарии. Каждый промпт отделяй знаком '***'. Все промпты должны быть кардинально разными: разное освещение, разные персонажи, разные сцены"
 )
 # озвучка
 voiceover_types = {
@@ -99,6 +200,7 @@ class Main_DB:
         print(self.make_quote_table())
         print(self.make_voiceove_table())
         print(self.make_prompt_img_table())
+        print(self.make_img_table())
 
     def make_book_table(self):
         try:
@@ -143,6 +245,15 @@ class Main_DB:
             return '[ОК] Таблица Prompt_img создана'
         except Exception as e:
             return f'[!] Ошибка! Таблица Prompt_img не создана. {e}'
+
+    def make_img_table(self):
+        try:
+            print(f'[Процесс...] Создаем таблицу Image')
+            self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_image_id START 1;")
+            self.base.execute("create table if not exists Image (id integer primary key default nextval('seq_image_id'), prompt_id integer, size integer,  date_create TIMESTAMP_S, date_last_use TIMESTAMP_S, link_yd varchar)")
+            return '[ОК] Таблица Image создана'
+        except Exception as e:
+            return f'[!] Ошибка! Таблица Image не создана. {e}'
 
     def load_books(self):
         try:
@@ -375,7 +486,7 @@ class Main_DB:
                         print("[!!!] Критическая ошибка связи.")
             print(f"[ПК] Создана озвучка {result}")
             if self.y.exists(f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}.wav'):
-                self.base.execute('update Voiceover set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?', [f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}', voiceover_id])
+                self.base.execute('update Voiceover set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?', [f'app:/voiceovers/{voiceover_id}_{quote_object["id"]}_{voiceover_type}.wav', voiceover_id])
             else:
                 self.base.execute('delete from Voiceover where id = ?', [voiceover_id])
                 print(f"[Ошибка] Файл отсутствует на яндекс-диске: {e}")
@@ -384,7 +495,7 @@ class Main_DB:
             print(f"[Ошибка] {e}")
 
     def run_voiceover(self, n, type):
-        client = run_kaggle_notebook('gradio_url_voiceover.txt', "tim3la/voiceover-1", 'C:/python_projects_tim3la/content_farm/notebooks/voiceover')
+        client = run_kaggle_notebook('gradio_url_voiceover.txt', "tim3la/voiceover-1", str(BASE_DIR / 'notebooks' / 'voiceover'))
         if client:
             for i in range(n):
                 main_db.make_voiceover(type, client)
@@ -410,6 +521,79 @@ class Main_DB:
         except Exception as e:
             print(f'[Ошибка] Проблема генерации промпта: {e}')
 
+    def make_img_prompt_many(self):
+        print(f'[Процесс...] Генерируем промпт для картинки')
+        client = Groq(api_key=groq_token)
+        messages = [
+            {"role": "system", "content": system_prompt_img_many},
+        ]
+        try:
+            response = client.chat.completions.create(
+                model=model_groq,
+                messages=messages,
+                temperature=0.5,  # Низкая температура для точного извлечения без галлюцинаций
+            )
+            result = response.choices[0].message.content.strip().split('***')
+            print(f'[Процесс...] Промпт: {result}')
+            for e in result:
+                self.base.execute('insert into Prompt_img(text, size, date_create, use_number) values (?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, 0)', [e.strip(), len(e)])
+        except Exception as e:
+            print(f'[Ошибка] Проблема генерации промпта: {e}')
+
+    def make_img(self, client):
+        print(f'[Процесс...] Создаем картинку')
+        df = self.base.execute('select * from Prompt_img order by use_number, date_last_use limit 1').df()
+        if df.empty:
+            print(f'[Пусто] Нет промптов')
+            return
+        prompt_object = df.iloc[0].to_dict()
+        print(f'[ОК] Найден промпт {prompt_object["id"]}: {prompt_object["text"]}')
+
+        try:
+            img_id = self.base.execute('insert into Image(prompt_id) values (?) returning id',
+                                             [prompt_object['id']])
+            img_id = img_id.fetchone()[0]
+            for attempt in range(7):
+                try:
+                    print(f"[Процесс...] Попытка {attempt + 1}: пробуем...")
+                    result = client.predict(
+                        img_id,  # id
+                        prompt_object["id"],  # prompt_id
+                        prompt_object["text"],  # prompt
+                        None,  # lora_weight игнорируется
+                        42,  # seed → batch mode
+                        api_name="/predict"
+                    )
+                    print(f'Результат = {result}')
+                    break
+                except Exception as e:
+                    print(f"[!] Попытка {attempt + 1}: Сервер еще не готов ({e})")
+                    if attempt < 4:
+                        time.sleep(10)
+                    else:
+                        print("[!!!] Критическая ошибка связи.")
+            print(f"[ПК] Создана картинка {img_id}_{prompt_object['id']}.png")
+            if self.y.exists(f'app:/images/{img_id}_{prompt_object['id']}.png'):
+                self.base.execute(
+                    'update Image set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?',
+                    [f'app:/images/{img_id}_{prompt_object['id']}.png', img_id])
+            else:
+                self.base.execute('delete from Image where id = ?', [img_id])
+                print(f"[Ошибка] Файл отсутствует на яндекс-диске: {e}")
+        except Exception as e:
+            self.base.execute('delete from Image where id = ?', [img_id])
+            print(f"[Ошибка] {e}")
+
+    def run_make_img(self, n):
+        client = run_kaggle_notebook('gradio_url_image.txt', "tim3la/image-1",
+                                     str(BASE_DIR / 'notebooks' / 'image'))
+        if client:
+            print('[ОК] Успешное подключение к kaggle')
+            for i in range(n):
+                main_db.make_img(client)
+        else:
+            print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
+        # client.predict(api_name="/stop_server")
 
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
@@ -418,5 +602,7 @@ if __name__ == '__main__':
     #     main_db.make_book_fragment()
     #     main_db.analyse_fragment_groq()
     # main_db.run_voiceover(7, 1)
-    for i in range(10):
-        main_db.make_img_prompt()
+    # for i in range(2):
+    #     main_db.make_img_prompt_many()
+
+    main_db.run_make_img(10)

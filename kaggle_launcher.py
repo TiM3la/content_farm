@@ -48,7 +48,10 @@ def run_kaggle_notebook(url_file_name, notebook, json_file_path):
     # запускаем ноутбук
     print(f"[Процессс..] Запускаем ноутбук {notebook}...")
     try:
-        api.kernels_push(json_file_path)
+        # api.kernels_push(json_file_path)
+        os.system(f"""
+        kaggle kernels push -p {json_file_path} --accelerator NvidiaTeslaT4
+        """)
         print("[ОК] Ноутбук запускается")
     except Exception as e:
         print(f"[!] Ошибка при запуске ноутбука {e}")

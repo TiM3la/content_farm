@@ -2,6 +2,7 @@ import subprocess
 import sys
 import os
 import time
+import gc
 
 VOICES_DICT = {
     1: "qenat_voice_2.wav",
@@ -51,10 +52,20 @@ def initial_setup():
     log("Step 1: Done. Environment is finally clean and ready.")
 
 def stop_server():
-    print("close work...")
-    os._exit(0) # Жесткий выход, который остановит ядро
+    print("[SDXL] shutting down gracefully...")
+    try:
+        demo.close()
+    except:
+        pass
+
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    print("[SDXL] cleanup done. exiting...")
+    raise SystemExit(0)
 
 if __name__ == '__main__':
+    log("BOOT: starting notebook")
     initial_setup()
 
 
@@ -132,6 +143,7 @@ if __name__ == '__main__':
         outputs="text"
     )
 
+    gr.Interface(fn=stop_server, inputs=[], outputs=[], api_name="/stop_server")
 
     demo.launch(share=True, inline=False, prevent_thread_lock=True)
 
