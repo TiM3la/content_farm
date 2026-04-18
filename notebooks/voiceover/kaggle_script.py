@@ -52,17 +52,23 @@ def initial_setup():
     log("Step 1: Done. Environment is finally clean and ready.")
 
 def stop_server():
-    print("[SDXL] shutting down gracefully...")
-    try:
-        demo.close()
-    except:
-        pass
+    print("[SDXL] shutdown requested")
 
-    torch.cuda.empty_cache()
-    gc.collect()
+    # 1️⃣ Вернуть ответ клиенту
+    def delayed_exit():
+        time.sleep(1.0)
+        try:
+            torch.cuda.empty_cache()
+            gc.collect()
+        except:
+            pass
+        print("[SDXL] exiting process")
+        os._exit(0)
 
-    print("[SDXL] cleanup done. exiting...")
-    raise SystemExit(0)
+    import threading
+    threading.Thread(target=delayed_exit, daemon=True).start()
+
+    return "OK"
 
 if __name__ == '__main__':
     log("BOOT: starting notebook")
@@ -130,20 +136,33 @@ if __name__ == '__main__':
 
 
     log("Step 3: Launching Gradio...")
-    demo = gr.Interface(
-        fn=tts_process,
+    with gr.Blocks() as demo:
+        gr.Markdown("## 🎙 Qwen Voice Cloner")
 
-        inputs=[
-            gr.Textbox(label="Text to speak"),
-            gr.Number(label="Voiceover ID"),
-            gr.Number(label="Quote ID"),
-            gr.Number(label="Voice Type (ID)"),
-            gr.Textbox(label="Reference Text")
-        ],
-        outputs="text"
-    )
+        text = gr.Textbox(label="Text to speak")
+        vid = gr.Number(label="Voiceover ID")
+        qid = gr.Number(label="Quote ID")
+        vtype = gr.Number(label="Voice Type ID")
+        ref = gr.Textbox(label="Reference text")
 
-    gr.Interface(fn=stop_server, inputs=[], outputs=[], api_name="/stop_server")
+        out = gr.Textbox(label="Result")
+
+        gen = gr.Button("Generate")
+        stop = gr.Button("🛑 Stop server")
+
+        gen.click(
+            fn=tts_process,
+            inputs=[text, vid, qid, vtype, ref],
+            outputs=out,
+            api_name="gen"
+        )
+
+        stop.click(
+            fn=stop_server,
+            inputs=[],
+            outputs=gr.Textbox(visible=False),
+            api_name="stop_server"
+        )
 
     demo.launch(share=True, inline=False, prevent_thread_lock=True)
 

@@ -14,6 +14,7 @@ from kaggle.api.kaggle_api_extended import KaggleApi
 from kaggle_launcher import run_kaggle_notebook
 from pathlib import Path
 from groq import Groq
+import traceback
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -120,7 +121,7 @@ dark-fantazy-medieval-aesthetics-style. a knight and a girl walking through a fl
 
 system_prompt_img_many = (
     "Сгенерируй 5 промптов для атмосферной картинки в стиле мрачной средневековой фантастики. Четко следуй следующей текстуре промпта: "
-    "слово 'dark-fantazy-medieval-aesthetics-style.', кто? что делает? около чего? (не обязательно) в какое время суток? в какой местности? что находится на фоне? сторона, с которой вид (например сзади, сбоку"
+    "кто? в какой одежде? что делает? около чего? (не обязательно) в какое время суток? в какой местности? что находится на фоне? сторона, с которой вид (например сзади, сбоку"
     "спереди и т.д.) дальность вида (близкий, далекий, средний и т.д). Цвет освещения"
     "Полученные промпты не должен быть больше, чем 354 символа каждый. Для описания используй факты, не используй оценочные прилагательные. участником картинки могут быть: рыцари, принцессы, колдуны, скелеты, мифические существа, животные и так далее"
     "Вот примеры:"
@@ -183,6 +184,28 @@ dark-fantazy-medieval-aesthetics-style.a knight holds a cat near flowers in the 
 dark-fantazy-medieval-aesthetics-style.a knight and a girl sitting on a mountain at night in winter, with a mountain in the background, a bright sky, and a close view from behind. The lighting is blue
 
 dark-fantazy-medieval-aesthetics-style. a knight and a girl walking through a flower field in the afternoon, with a forest, a castle, and clouds in the background. close-up view from behind.The lighting is white"""
+    "На основе этих примеров придумай что то подобное. Экспериментируй с цветами и сценами. Напиши на английском языке. Не добавляй свои комментарии. Каждый промпт отделяй знаком '***'. Все промпты должны быть кардинально разными: разное освещение, разные персонажи, разные сцены"
+)
+system_prompt_img_many = (
+    "Сгенерируй 5 промптов для атмосферной картинки в стиле мрачной средневековой фантастики. "
+    "Четко следуй следующей текстуре промпта: "
+    "кто? в какой одежде? что делает? около чего? (не обязательно) в какое время суток? в какой местности? что находится на фоне? сторона, с которой вид (например сзади, сбоку"
+    "спереди и т.д.) дальность вида (близкий, далекий, средний и т.д). Цвет освещения"
+    "ВАЖНО: Порядок элементов в каждом из 5 промптов должен быть РАЗНЫМ. Иногда начинай с локации, иногда с действия, иногда с освещения. Не используй шаблон 'A wizard is standing' чаще одного раза на 5 промптов."
+    "ВАЖНО: Вместо глаголов состояния (is standing, is sitting) используй глаголы действия (lurks, rests, gazes, trudges) или причастия (seated, perched, cloaked)."
+    "ВАЖНО: Цвет освещения вставляй в описание, а не отдельным предложением, если это возможно (например 'bathed in cold turquoise moonlight' вместо 'The lighting is turquoise')."
+    "Полученные промпты не должен быть больше, чем 354 символа каждый. Для описания используй факты, не используй оценочные прилагательные. участником картинки могут быть: рыцари, принцессы, колдуны, скелеты, мифические существа, животные и так далее"
+    "Вот примеры (обрати внимание, они имеют разную структуру, не только 'A кто-то is...'):"
+    """dark-fantazy-medieval-aesthetics-style. Silhouetted castle on a cliff edge, thunderstorm brewing, distant purple-pink lightning illuminating the abyss, front view far away.
+
+dark-fantazy-medieval-aesthetics-style. Rusted chainmail and mud-caked boots, a weary knight rests against a gnarled tree, dawn mist swirling around ancient ruins in background, close-up side view. The lighting is pale blue.
+
+dark-fantazy-medieval-aesthetics-style. Wizards gathered around a pulsating orb in a cave, faces illuminated from below by sickly green glow, stalactites and shadows in background, close front view.
+
+dark-fantazy-medieval-aesthetics-style. A massive dragon skeleton half-buried in a desert of ash, tiny figures of knights approaching from afar, oppressive orange sky at dusk, view from behind the bones.
+
+dark-fantazy-medieval-aesthetics-style. Enormous turquoise moon over a frozen lake, a single cloaked figure stands at the edge of the ice, castle ruins reflected in the water, side view far away.
+[ ... далее оставляете остальные ваши примеры, они тоже хороши ... ]"""
     "На основе этих примеров придумай что то подобное. Экспериментируй с цветами и сценами. Напиши на английском языке. Не добавляй свои комментарии. Каждый промпт отделяй знаком '***'. Все промпты должны быть кардинально разными: разное освещение, разные персонажи, разные сцены"
 )
 # озвучка
@@ -475,7 +498,7 @@ class Main_DB:
                         quote_object['id'],
                         voiceover_type,
                         "Сегодня на улице стоит прекрасная погода. Я занимаюсь настройкой нейронных сетей для автоматической озвучки текстов. Это очень интересный процесс, который требует внимания к деталям и правильной настройки всех параметров модели.",
-                        api_name="/predict"
+                        api_name="/gen"
                     )
                     break
                 except Exception as e:
@@ -501,7 +524,10 @@ class Main_DB:
                 main_db.make_voiceover(type, client)
         else:
             print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
-        client.predict(api_name="/stop_server")
+        try:
+            client.predict(api_name="/stop_server")
+        except Exception:
+            pass  # сервер УМЕР — это ожидаемо
 
     def make_img_prompt(self):
         print(f'[Процесс...] Генерируем промпт для картинки')
@@ -513,7 +539,7 @@ class Main_DB:
             response = client.chat.completions.create(
                 model=model_groq,
                 messages=messages,
-                temperature=0.5,  # Низкая температура для точного извлечения без галлюцинаций
+                temperature=0.9,  # высокая  температура для креативности
             )
             result = response.choices[0].message.content.strip()
             print(f'[Процесс...] Промпт: {result}')
@@ -531,12 +557,13 @@ class Main_DB:
             response = client.chat.completions.create(
                 model=model_groq,
                 messages=messages,
-                temperature=0.5,  # Низкая температура для точного извлечения без галлюцинаций
+                temperature=0.9,  # Низкая температура для точного извлечения без галлюцинаций
             )
             result = response.choices[0].message.content.strip().split('***')
             print(f'[Процесс...] Промпт: {result}')
             for e in result:
-                self.base.execute('insert into Prompt_img(text, size, date_create, use_number) values (?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, 0)', [e.strip(), len(e)])
+                if e.strip():
+                    self.base.execute('insert into Prompt_img(text, size, date_create, use_number) values (?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, 0)', [e.strip(), len(e)])
         except Exception as e:
             print(f'[Ошибка] Проблема генерации промпта: {e}')
 
@@ -559,10 +586,10 @@ class Main_DB:
                     result = client.predict(
                         img_id,  # id
                         prompt_object["id"],  # prompt_id
-                        prompt_object["text"],  # prompt
-                        None,  # lora_weight игнорируется
-                        42,  # seed → batch mode
-                        api_name="/predict"
+                        prompt_object["text"] + 'dark fantasy style, cinematic, realistic, photo',  # prompt
+                        1.2,
+                        None,
+                        api_name="/gen"
                     )
                     print(f'Результат = {result}')
                     break
@@ -577,6 +604,7 @@ class Main_DB:
                 self.base.execute(
                     'update Image set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?',
                     [f'app:/images/{img_id}_{prompt_object['id']}.png', img_id])
+                self.base.execute('update Prompt_img set date_last_use=NOW()::TIMESTAMP::TIMESTAMP_S, use_number = ? where id = ?', [prompt_object['use_number'] + 1, prompt_object['id']])
             else:
                 self.base.execute('delete from Image where id = ?', [img_id])
                 print(f"[Ошибка] Файл отсутствует на яндекс-диске: {e}")
@@ -590,10 +618,14 @@ class Main_DB:
         if client:
             print('[ОК] Успешное подключение к kaggle')
             for i in range(n):
+                print(f'[Процесс...] Картинка {i+1} из {n}')
                 main_db.make_img(client)
         else:
             print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
-        # client.predict(api_name="/stop_server")
+        try:
+            client.predict(api_name="/stop_server")
+        except Exception:
+            pass  # сервер УМЕР — это ожидаемо
 
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
@@ -604,5 +636,6 @@ if __name__ == '__main__':
     # main_db.run_voiceover(7, 1)
     # for i in range(2):
     #     main_db.make_img_prompt_many()
-
+    #     time.sleep(10)
     main_db.run_make_img(10)
+    print('Готово!')

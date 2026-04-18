@@ -27,22 +27,26 @@ def initial_setup():
         "yadisk",
     ])
 
-
-
     log("Step 1: dependencies installed")
 
 def stop_server():
-    print("[SDXL] shutting down gracefully...")
-    try:
-        demo.close()
-    except:
-        pass
+    print("[SDXL] shutdown requested")
 
-    torch.cuda.empty_cache()
-    gc.collect()
+    # 1️⃣ Вернуть ответ клиенту
+    def delayed_exit():
+        time.sleep(1.0)
+        try:
+            torch.cuda.empty_cache()
+            gc.collect()
+        except:
+            pass
+        print("[SDXL] exiting process")
+        os._exit(0)
 
-    print("[SDXL] cleanup done. exiting...")
-    raise SystemExit(0)
+    import threading
+    threading.Thread(target=delayed_exit, daemon=True).start()
+
+    return "OK"
 
 # ================= MAIN =================
 if __name__ == "__main__":
@@ -52,6 +56,7 @@ if __name__ == "__main__":
     import gradio as gr
     import yadisk
     from diffusers import StableDiffusionXLPipeline
+    from PIL import Image
 
     # -------- CONFIG --------
     TOKEN = "y0__xCigd-mCBj76D8gyKKS-hZpnEvyFrPRUfxqf66KxY3EqDTWOg"
@@ -76,11 +81,19 @@ if __name__ == "__main__":
 
     pipe.enable_model_cpu_offload()
     pipe.enable_attention_slicing()
-    pipe.vae.enable_slicing()
+    pipe.enable_vae_slicing()
 
+    # MY LORA
+    # pipe.load_lora_weights(
+    #     "/kaggle/input/my-lora-1",
+    #     weight_name="mylora_4_ep6.safetensors",
+    #     adapter_name="mylora",
+    #     local_files_only=True
+    # )
+    # LORA 1
     pipe.load_lora_weights(
         "/kaggle/input/my-lora-1",
-        weight_name="mylora_4_ep6.safetensors",
+        weight_name="lora_1.safetensors",
         adapter_name="mylora",
         local_files_only=True
     )
@@ -89,47 +102,65 @@ if __name__ == "__main__":
 
     # ================= GENERATION =================
     def generate_image(id, prompt_id, prompt, lora_weight=None, seed=None):
-        print(id, prompt_id, prompt, lora_weight, seed)
-        try:
-            log("1...")
-            remote_dir = "app:/images"
+        log(f'CALL: id={id}, prompt_id={prompt_id}, lora={lora_weight}, seed={seed}')
 
+        try:
+            remote_dir = "app:/images"
             if not y_disk.exists(remote_dir):
                 y_disk.mkdir(remote_dir)
+                log(f"Created remote dir: {remote_dir}")
 
-            # ================= MODE 1: SINGLE IMAGE =================
-            log("single_image...")
-            if seed is None:
+            NEG = ("bad anatomy, extra limbs, missing arms, missing legs, "
+                   "extra fingers, fused fingers, ugly face, deformed face, "
+                   "blurry, low quality, worst quality")
+
+            if lora_weight is not None:
+
                 pipe.set_adapters(["mylora"], adapter_weights=[float(lora_weight)])
 
-                log("pipe...")
-                image = pipe(
+                # ---------- BASE ----------
+                log("Generating base image...")
+                base_image = pipe(
                     prompt=prompt,
-                    negative_prompt="bad anatomy, extra limbs, missing arms, missing legs, extra fingers, fused fingers, ugly face, deformed face, blurry, low quality, worst quality",
-                    num_inference_steps=30,
+                    negative_prompt=NEG,
+                    num_inference_steps=20,
                     guidance_scale=4,
                     width=768,
                     height=1344,
                 ).images[0]
+                log("Base image generated successfully.")
 
                 filename = f"{id}_{prompt_id}.png"
 
-                image.save(filename)
+                try:
+                    base_image.save(filename)
+                    log(f"Lowq image saved locally: {filename} ({os.path.getsize(filename)} bytes)")
+                except Exception as e:
+                    log(f"ERROR saving lowq image: {e}")
+
                 remote_path = f"{remote_dir}/{filename}"
 
-                y_disk.upload(filename, remote_path, overwrite=True)
-                os.remove(filename)
+                try:
+                    log(f"Uploading to {remote_path}...")
+                    y_disk.upload(filename, remote_path, overwrite=True)
+                    log(f"Lowq uploaded successfully: {remote_path}")
+                except Exception as e:
+                    log(f"ERROR uploading lowq: {e}")
 
-                del image
+                if os.path.exists(filename):
+                    os.remove(filename)
+                    log(f"Removed local file: {filename}")
+
+                del base_image
                 torch.cuda.empty_cache()
                 gc.collect()
 
                 return remote_path
-
             # ================= MODE 2: SEED + WEIGHTS LOOP =================
             else:
-                weights_list = [0, 1.2, 1.5, 1.7, 2.0]
+                log("more image...")
 
+                weights_list = [0, 1.2, 1.5, 1.7, 2.0]
                 results = []
 
                 for w in weights_list:
@@ -137,25 +168,25 @@ if __name__ == "__main__":
 
                     generator = torch.Generator(device="cuda").manual_seed(int(seed))
 
-                    image = pipe(
+                    # ---------- BASE ----------
+                    base_image = pipe(
                         prompt=prompt,
-                        negative_prompt="bad anatomy, extra limbs, missing arms, missing legs, extra fingers, fused fingers, ugly face, deformed face, blurry, low quality, worst quality",
-                        num_inference_steps=30,
+                        negative_prompt=NEG,
+                        num_inference_steps=20,
                         guidance_scale=4,
-                        width=768,
-                        height=1344,
+                        width=512,
+                        height=896,
                         generator=generator
                     ).images[0]
 
                     filename = f"{id}_{prompt_id}_w{w}_s{seed}.png"
+                    base_image.save(filename)
 
-                    image.save(filename)
                     remote_path = f"{remote_dir}/{filename}"
-
                     y_disk.upload(filename, remote_path, overwrite=True)
                     os.remove(filename)
 
-                    del image
+                    del base_image
                     torch.cuda.empty_cache()
                     gc.collect()
 
@@ -167,22 +198,35 @@ if __name__ == "__main__":
             return f"ERROR: {e}"
 
     # ================= GRADIO =================
-    demo = gr.Interface(
-        fn=generate_image,
-        inputs=[
-            gr.Number(label="ID"),
-            gr.Number(label="Prompt ID"),
-            gr.Textbox(label="Prompt"),
-            gr.Number(label="LoRA weight (used only if seed is empty)"),
-            gr.Number(label="Seed (optional batch mode)")
-        ],
-        outputs="text"
-    )
+    with gr.Blocks() as demo:
+        gr.Markdown("## SDXL Generator")
 
-    # gr.Interface(fn=stop_server, inputs=[], outputs=[], api_name="/stop_server")
+        id_in = gr.Number(label="ID")
+        prompt_id_in = gr.Number(label="Prompt ID")
+        prompt_in = gr.Textbox(label="Prompt")
+        lora_in = gr.Number(label="LoRA weight")
+        seed_in = gr.Number(label="Seed (optional)")
+        output = gr.Textbox(label="Result")
+
+        generate_btn = gr.Button("Generate")
+        stop_btn = gr.Button("🛑 Stop server")
+
+        generate_btn.click(
+            fn=generate_image,
+            inputs=[id_in, prompt_id_in, prompt_in, lora_in, seed_in],
+            outputs=output,
+            api_name="gen"
+        )
+
+        stop_btn.click(
+            fn=stop_server,
+            inputs=[],
+            outputs=gr.Textbox(visible=False),
+            api_name="stop_server"
+        )
 
     log("Launching Gradio...")
-    demo.launch(share=True, inline=False, prevent_thread_lock=True)
+    demo.launch(share=True, inline=False, prevent_thread_lock=True, show_error=True)
 
     # ================= SAVE URL =================
     time.sleep(5)
