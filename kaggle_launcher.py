@@ -35,7 +35,7 @@ def get_remote_gradio_url(y_client, url_file_name):
         print(f"[!] Ошибка получения ссылки: {e}")
         return None
 
-def run_kaggle_notebook(url_file_name, notebook, json_file_path):
+def run_kaggle_notebook(url_file_name, notebook, json_file_path, gpu=True):
     # Чистим старую ссылку
     try:
         y.remove(f'app:/gradio_urls/{url_file_name}')
@@ -49,9 +49,14 @@ def run_kaggle_notebook(url_file_name, notebook, json_file_path):
     print(f"[Процессс..] Запускаем ноутбук {notebook}...")
     try:
         # api.kernels_push(json_file_path)
-        os.system(f"""
-        kaggle kernels push -p {json_file_path} --accelerator NvidiaTeslaT4
-        """)
+        if gpu:
+            os.system(f"""
+            kaggle kernels push -p {json_file_path} --accelerator NvidiaTeslaT4
+            """)
+        else:
+            os.system(f"""
+                        kaggle kernels push -p {json_file_path}
+                        """)
         print("[ОК] Ноутбук запускается")
     except Exception as e:
         print(f"[!] Ошибка при запуске ноутбука {e}")

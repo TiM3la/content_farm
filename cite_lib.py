@@ -224,6 +224,7 @@ class Main_DB:
         print(self.make_voiceove_table())
         print(self.make_prompt_img_table())
         print(self.make_img_table())
+        print(self.make_video_table())
 
     def make_book_table(self):
         try:
@@ -273,10 +274,19 @@ class Main_DB:
         try:
             print(f'[Процесс...] Создаем таблицу Image')
             self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_image_id START 1;")
-            self.base.execute("create table if not exists Image (id integer primary key default nextval('seq_image_id'), prompt_id integer, size integer,  date_create TIMESTAMP_S, date_last_use TIMESTAMP_S, link_yd varchar)")
+            self.base.execute("create table if not exists Image (id integer primary key default nextval('seq_image_id'), prompt_id integer REFERENCES Prompt_img(id), size integer,  date_create TIMESTAMP_S, date_last_use TIMESTAMP_S, link_yd varchar)")
             return '[ОК] Таблица Image создана'
         except Exception as e:
             return f'[!] Ошибка! Таблица Image не создана. {e}'
+
+    def make_video_table(self):
+        try:
+            print(f'[Процесс...] Создаем таблицу Video')
+            self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_video_id START 1;")
+            self.base.execute("create table if not exists Video (id integer primary key default nextval('seq_video_id'), img_id integer REFERENCES Image(id), duration integer, date_create TIMESTAMP_S, date_last_use TIMESTAMP_S, link_yd varchar)")
+            return '[ОК] Таблица Video создана'
+        except Exception as e:
+            return f'[!] Ошибка! Таблица Video не создана. {e}'
 
     def load_books(self):
         try:
@@ -569,7 +579,7 @@ class Main_DB:
 
     def make_img(self, client):
         print(f'[Процесс...] Создаем картинку')
-        df = self.base.execute('select * from Prompt_img order by use_number, date_last_use limit 1').df()
+        df = self.base.execute('select * from Prompt_img order by use_number, date_last_use, id limit 1').df()
         if df.empty:
             print(f'[Пусто] Нет промптов')
             return
@@ -613,13 +623,72 @@ class Main_DB:
             print(f"[Ошибка] {e}")
 
     def run_make_img(self, n):
-        client = run_kaggle_notebook('gradio_url_image.txt', "tim3la/image-1",
-                                     str(BASE_DIR / 'notebooks' / 'image'))
+        client = run_kaggle_notebook('gradio_url_image.txt', "tim3la/image-1", str(BASE_DIR / 'notebooks' / 'image'))
         if client:
             print('[ОК] Успешное подключение к kaggle')
             for i in range(n):
                 print(f'[Процесс...] Картинка {i+1} из {n}')
                 main_db.make_img(client)
+        else:
+            print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
+        try:
+            client.predict(api_name="/stop_server")
+        except Exception:
+            pass  # сервер УМЕР — это ожидаемо
+
+    def make_video(self, client):
+        print(f'[Процесс...] Создаем видео')
+        # df = self.base.execute('select * from Image where date_last_use is null order by id limit 1').df()
+        df = self.base.execute('select * from Image where id = 112 order by id limit 1').df()
+        if df.empty:
+            print(f'[Пусто] Нет картинок')
+            return
+        img_object = df.iloc[0].to_dict()
+        print(f'[ОК] Найдена картинка {img_object["id"]}: {img_object["link_yd"]}')
+
+        try:
+            video_id = self.base.execute('insert into Video(img_id) values (?) returning id',
+                                       [img_object['id']])
+            video_id = video_id.fetchone()[0]
+            for attempt in range(7):
+                try:
+                    print(f"[Процесс...] Попытка {attempt + 1}: пробуем...")
+                    result = client.predict(
+                        video_id,  # id
+                        img_object["id"],  # prompt_id
+                        img_object["link_yd"],
+                        api_name="/gen"
+                    )
+                    print(f'Результат = {result}')
+                    break
+                except Exception as e:
+                    print(f"[!] Попытка {attempt + 1}: Сервер еще не готов ({e})")
+                    if attempt < 4:
+                        time.sleep(10)
+                    else:
+                        print("[!!!] Критическая ошибка связи.")
+            print(f"[ПК] Создано видео {video_id}_{img_object['id']}.mp4")
+            if self.y.exists(f'app:/videos/{video_id}_{img_object['id']}.mp4'):
+                self.base.execute(
+                    'update Video set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?',
+                    [f'app:/videos/{video_id}_{img_object['id']}.mp4', video_id])
+                self.base.execute(
+                    'update Image set date_last_use=NOW()::TIMESTAMP::TIMESTAMP_S where id = ?',
+                    [img_object['id']])
+            else:
+                self.base.execute('delete from Video where id = ?', [video_id])
+                print(f"[Ошибка] Файл отсутствует на яндекс-диске: {e}")
+        except Exception as e:
+            self.base.execute('delete from Video where id = ?', [video_id])
+            print(f"[Ошибка] {e}")
+
+    def run_make_video(self, n):
+        client = run_kaggle_notebook('gradio_url_video.txt', "tim3la/video-1", str(BASE_DIR / 'notebooks' / 'video'), False)
+        if client:
+            print('[ОК] Успешное подключение к kaggle')
+            for i in range(n):
+                print(f'[Процесс...] Картинка {i + 1} из {n}')
+                main_db.make_video(client)
         else:
             print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
         try:
@@ -637,5 +706,6 @@ if __name__ == '__main__':
     # for i in range(2):
     #     main_db.make_img_prompt_many()
     #     time.sleep(10)
-    main_db.run_make_img(10)
+    # main_db.run_make_img(10)
+    main_db.run_make_video(2)
     print('Готово!')
