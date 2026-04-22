@@ -246,5 +246,5 @@ if __name__ == "__main__":
 
     log("🚀 SDXL READY")
 
-    for i in range(20):
+    while True:
         time.sleep(30)

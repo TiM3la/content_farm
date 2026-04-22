@@ -196,16 +196,60 @@ system_prompt_img_many = (
     "ВАЖНО: Цвет освещения вставляй в описание, а не отдельным предложением, если это возможно (например 'bathed in cold turquoise moonlight' вместо 'The lighting is turquoise')."
     "Полученные промпты не должен быть больше, чем 354 символа каждый. Для описания используй факты, не используй оценочные прилагательные. участником картинки могут быть: рыцари, принцессы, колдуны, скелеты, мифические существа, животные и так далее"
     "Вот примеры (обрати внимание, они имеют разную структуру, не только 'A кто-то is...'):"
-    """dark-fantazy-medieval-aesthetics-style. Silhouetted castle on a cliff edge, thunderstorm brewing, distant purple-pink lightning illuminating the abyss, front view far away.
+    """ Knights sitting by a fire at night in the forest, with the moon and a castle in the background, front view close. The lighting is turquoise
+. A knight sitting on a wasteland at night, with a bright starry sky in the background, front view. The lighting is blue
+. Wizards stand at sunset on the edge of a cliff, with a castle in the background, a bright sky, mountains, and fog. view far from behind. The lighting is purple-yellow
 
-dark-fantazy-medieval-aesthetics-style. Rusted chainmail and mud-caked boots, a weary knight rests against a gnarled tree, dawn mist swirling around ancient ruins in background, close-up side view. The lighting is pale blue.
+ A knight on a horse is walking on a lawn in the forest in the evening, with a castle, fields, fog, and trees in the background. View far from behind. The lighting is dark green
+. Knight lying at night on a stone near flowers near a tree in the forest, at night, in the background fog, mountains, red sky. Front view close. The lighting is red
 
-dark-fantazy-medieval-aesthetics-style. Wizards gathered around a pulsating orb in a cave, faces illuminated from below by sickly green glow, stalactites and shadows in background, close front view.
+ a knight on a horse is running near a mountain of skeletons at night among the mountains, with a castle, fog, glow, mountains, and trees in the background. the view from behind is far away. The lighting is green
 
-dark-fantazy-medieval-aesthetics-style. A massive dragon skeleton half-buried in a desert of ash, tiny figures of knights approaching from afar, oppressive orange sky at dusk, view from behind the bones.
+ a knight on a horse is standing near the water at night in the middle of a forest, with a glowing moon and trees in the background. the view from the front is far away
 
-dark-fantazy-medieval-aesthetics-style. Enormous turquoise moon over a frozen lake, a single cloaked figure stands at the edge of the ice, castle ruins reflected in the water, side view far away.
-[ ... далее оставляете остальные ваши примеры, они тоже хороши ... ]"""
+wizards stand high in the mountains during the day, with the sun and mountains in the background. side view far away. The lighting is turquoise
+
+ a wizard stands near an igloo in the mountains during the day in winter, with a mountain in the background. side view far away. The lighting is blue
+
+a wizard is sitting in a castle window at night, with a mountain, moon, castle, city, and fog in the background. the view from behind is far away. The lighting is dark blue
+
+ A knight lies in a clearing at night, with a bright starry sky and a glow in the background. Close-up view from the side. The lighting is blue
+. castle near the abyss at sunset, with a thunderstorm and fog in the background. the view from the front is far away. The lighting is purple-pink
+
+ a knight climbs the stairs to the castle at night in the thicket, with the castle in the background and fog. the view from behind is far away. The lighting is blue
+
+ wizards walking in the mountain forest to the castle in the evening, castle background, big moon, fog. view from behind far away. The lighting is blue-orange
+
+castle on the mountaintop at sunset, with bright clouds in the background. the view from the front is far away. the lighting is green-orange
+
+castle in the middle of the mountains at night in winter, with the moon in the background. front view far away.
+
+ a skeleton standing in a cave in the afternoon near rocks, with rocks and trees in the background. close-up view from the front.  The lighting is turquoise
+
+ A knight and a princess are standing in a castle near flowers in the afternoon. Flowers are in the background. Close-up view from the side. The lighting is yellow
+
+ a knight holds a princess in the evening near the grass. in the background is a forest. a close-up view from the front
+
+ a wizard is sitting near a river in the forest in the evening. in the background, there is a castle, trees, and fog. the view from the front is far away. the lighting is yellow-green
+
+ a wizard is sitting near a river in the forest in the evening. in the background, there is a castle, trees, a mountain, and fog. the view from the front is far away. the lighting is yellow-green
+
+ castle among the mountains at night, with a glowing moon in the background. front view far away. The lighting is red
+
+ a skeleton sitting on a staircase near a candle at night, with a castle, mountains, fog, glow, and a distant view in the background. The lighting is turquoise
+
+ a knight is sitting near a lake in a swamp at sunset, with a castle in the background, a glowing sky, trees, fog, and a close view from the front. The lighting is pink. 
+
+ a castle in the mountains near a river at night, with the moon and mountains in the background. front view far away. The lighting is blue
+
+ a house in the forest at night near a path, background trees, fog, view from the front far away. The lighting is blue
+
+ a girl lying on a dragon near the rocks in the evening, against the background of a mountain, a thunderstorm, a glow, a close view from the front. The lighting is yellow
+
+a knight holds a cat near flowers in the afternoon, with a forest, flowers, and clouds in the background. close-up view from the front. The lighting is yellow
+
+a knight and a girl sitting on a mountain at night in winter, with a mountain in the background, a bright sky, and a close view from behind. The lighting is blue
+. a knight and a girl walking through a flower field in the afternoon, with a forest, a castle, and clouds in the background. close-up view from behind.The lighting is white"""
     "На основе этих примеров придумай что то подобное. Экспериментируй с цветами и сценами. Напиши на английском языке. Не добавляй свои комментарии. Каждый промпт отделяй знаком '***'. Все промпты должны быть кардинально разными: разное освещение, разные персонажи, разные сцены"
 )
 # озвучка
@@ -639,7 +683,7 @@ class Main_DB:
     def make_video(self, client):
         print(f'[Процесс...] Создаем видео')
         # df = self.base.execute('select * from Image where date_last_use is null order by id limit 1').df()
-        df = self.base.execute('select * from Image where id = 112 order by id limit 1').df()
+        df = self.base.execute('select * from Image where date_last_use is null order by id limit 1').df()
         if df.empty:
             print(f'[Пусто] Нет картинок')
             return
@@ -698,14 +742,14 @@ class Main_DB:
 
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
-    # main_db.load_books()
+    main_db.load_books()
     # for i in range(7):
     #     main_db.make_book_fragment()
     #     main_db.analyse_fragment_groq()
     # main_db.run_voiceover(7, 1)
-    # for i in range(2):
+    # for i in range(3):
     #     main_db.make_img_prompt_many()
     #     time.sleep(10)
-    # main_db.run_make_img(10)
-    main_db.run_make_video(2)
+    # main_db.run_make_img(2)
+    main_db.run_make_video(15)
     print('Готово!')

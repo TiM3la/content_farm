@@ -178,5 +178,5 @@ if __name__ == '__main__':
         y_disk.upload("gradio_url_voiceover.txt", "app:/gradio_urls/gradio_url_voiceover.txt", overwrite=True)
 
     log("🚀 System Ready")
-    for i in range(20):
+    while True:
         time.sleep(30)
