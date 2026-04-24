@@ -33,6 +33,7 @@ fragment_overlap = 300
 # Анализ текста
 model_id = "Qwen/Qwen2.5-7B-Instruct"
 model_groq = 'llama-3.1-8b-instant'
+model_groq = 'meta-llama/llama-4-scout-17b-16e-instruct'
 system_prompt_generate = (
     "Ты — эксперт, который вычленяет из текстов интересные высказывания "
     "Твоя задача: найти в тексте интересные высказывания, философские изречения или жизненные наблюдения. "
@@ -252,6 +253,20 @@ a knight and a girl sitting on a mountain at night in winter, with a mountain in
 . a knight and a girl walking through a flower field in the afternoon, with a forest, a castle, and clouds in the background. close-up view from behind.The lighting is white"""
     "На основе этих примеров придумай что то подобное. Экспериментируй с цветами и сценами. Напиши на английском языке. Не добавляй свои комментарии. Каждый промпт отделяй знаком '***'. Все промпты должны быть кардинально разными: разное освещение, разные персонажи, разные сцены"
 )
+system_prompt_mistery_question = (
+    """Ты получаешь промпт для генерации изображения. Твоя задача — придумать один вопрос на русском языке, который эта картинка иллюстрирует. Вопрос должен строго соответствовать требованиям:
+    Начинаться со слова «Представь:» (с двоеточием). Сразу после «Представь:» должно идти личное местоимение «ты» и глагол в личной форме настоящего времени (например, «ты стоишь», «ты видишь», «ты идёшь»). Категорически запрещено использовать деепричастные обороты типа «уходя», «стоя», «скача» вместо «ты уходишь», «ты стоишь», «ты скачешь».
+    Быть глубоким, содержать моральную дилемму, внутренний конфликт, вызывать страх, тревогу, грусть — без шокирующей жестокости. Всё в эстетике тёмного фэнтези.
+    Быть открытым (не «да/нет»), поощрять проявление уникальности мышления и интеллекта.
+    Быть эмоционально близким молодым людям (аудитория TikTok), без излишней назидательности.
+    Жёстко опираться на конкретные визуальные элементы из промпта изображения. Запрещено придумывать новые объекты, которых нет в исходном описании. Каждый значимый объект (персонаж, строение, предмет) должен быть упомянут корректно и естественно встроен в сюжет вопроса. Если в промпте изображения есть голем, заброшенная деревня, замок, свечи — используй именно их, не заменяй и не добавляй ничего иного. Вопрос не должен описывать сцену, отсутствующую в визуальном промпте.
+    Разнообразная структура, без клише. Допускается незаконченная история, внутренний монолог, сцена-выбор, встреча с собой и т.п.
+    Безупречный русский язык, грамотность, отсутствие неправильных склонений.
+    Лаконичность: 2–3 предложения, заканчиваться вопросительным знаком.
+    Не упоминай цвет освещения без крайней необходимости.
+    Вопрос должен быть самодостаточным и точно отражать визуальную сцену.
+    Выдай ровно один вопрос без комментариев, альтернатив и пояснений."""
+)
 # озвучка
 voiceover_types = {
     1: 'qenat_voice_2.wav'
@@ -339,7 +354,7 @@ class Main_DB:
         try:
             print(f'[Процесс...] Создаем таблицу Prompt_img')
             self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_prompt_img_id START 1;")
-            self.base.execute("create table if not exists Prompt_img (id integer primary key default nextval('seq_prompt_img_id'), text varchar, size integer,  date_create TIMESTAMP_S, date_last_use TIMESTAMP_S, use_number integer)")
+            self.base.execute("create table if not exists Prompt_img (id integer primary key default nextval('seq_prompt_img_id'), text varchar, mistery_question varchar, size integer,  date_create TIMESTAMP_S, date_last_use TIMESTAMP_S, use_number integer)")
             return '[ОК] Таблица Prompt_img создана'
         except Exception as e:
             return f'[!] Ошибка! Таблица Prompt_img не создана. {e}'
@@ -366,7 +381,7 @@ class Main_DB:
         try:
             print(f'[Процесс...] Создаем таблицу Video_task')
             self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_video_task_id START 1;")
-            self.base.execute("create table if not exists Video_task (id integer primary key default nextval('seq_video_task_id'), type integer, date_create TIMESTAMP_S, title varchar, duration integer, video_num integer, music_id integer REFERENCES Music(id), voiceover_id integer REFERENCES Voiceover(id), video_list integer[], link_yd varchar)")
+            self.base.execute("create table if not exists Video_task (id integer primary key default nextval('seq_video_task_id'), type integer, date_create TIMESTAMP_S, title varchar, duration float, video_num integer, music_id integer REFERENCES Music(id), voiceover_id integer REFERENCES Voiceover(id), video_list integer[], link_yd varchar)")
             return '[ОК] Таблица Video_task создана'
         except Exception as e:
             return f'[!] Ошибка! Таблица Video_task не создана. {e}'
@@ -643,7 +658,7 @@ class Main_DB:
 
     def make_img_prompt_many(self):
         print(f'[Процесс...] Генерируем промпт для картинки')
-        client = Groq(api_key=groq_token)
+        client = Groq(api_key=groq_token, timeout=30.0)
         messages = [
             {"role": "system", "content": system_prompt_img_many},
         ]
@@ -651,15 +666,37 @@ class Main_DB:
             response = client.chat.completions.create(
                 model=model_groq,
                 messages=messages,
-                temperature=0.9,  # Низкая температура для точного извлечения без галлюцинаций
+                temperature=0.9,  # Высокая температура для креативности
             )
             result = response.choices[0].message.content.strip().split('***')
             print(f'[Процесс...] Промпт: {result}')
             for e in result:
                 if e.strip():
-                    self.base.execute('insert into Prompt_img(text, size, date_create, use_number) values (?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, 0)', [e.strip(), len(e)])
+                    mistery_question = self.make_mistery_question_for_prompt(client, e)
+                    self.base.execute('insert into Prompt_img(text, size, date_create, use_number, mistery_question) values (?, ?, NOW()::TIMESTAMP::TIMESTAMP_S, 0, ?)', [e.strip(), len(e), mistery_question])
         except Exception as e:
             print(f'[Ошибка] Проблема генерации промпта: {e}')
+
+    def make_mistery_question_for_prompt(self, client, prompt):
+        for i in range(5):
+            print('[Процесс...] Генерируем вопрос для промпта')
+            try:
+                if not client:
+                    client = Groq(api_key=groq_token, timeout=30.0)
+                messages = [
+                    {"role": "system", "content": system_prompt_mistery_question},
+                    {"role": "user", "content": f"Промпт изображения:\n\n{prompt}"}
+                ]
+                response = client.chat.completions.create(
+                    model=model_groq,
+                    messages=messages,
+                    temperature=0.7,  # Средняя температура для креативности
+                )
+                result = response.choices[0].message.content.strip()
+                print(f'[ОК] Успешно создан вопрос: {result}')
+                return result
+            except Exception as e:
+                print('Ошибка генерации вопроса')
 
 
     def make_img(self, client):
@@ -811,13 +848,21 @@ class Main_DB:
         else:
             return False
 
-    def find_music(self):
-        df = self.base.execute('select * from Music order by use_number, date_last_use, id limit 1').df()
+    def find_music(self, ultimate=None):
+        df = self.base.execute(f'select * from Music where {ultimate} order by use_number, date_last_use, id limit 1').df()
         if df.empty:
             return False
         music_object = df.iloc[0].to_dict()
         self.base.execute('update Music set date_last_use = NOW()::TIMESTAMP::TIMESTAMP_S, use_number = ? where id = ?', [int(music_object['use_number']) + 1, music_object['id']])
         return music_object
+
+    def get_info(self ,query):
+        df = self.base.execute(query).df()
+        if df.empty:
+            return {}
+        object = df.iloc[0].to_dict()
+        return object
+
 
     def write_video_task(self, video_task_dict):
         video_task_id = self.base.execute('insert into Video_Task (type, date_create, title, duration, video_num, music_id, voiceover_id, video_list) values (?, NOW()::TIMESTAMP::TIMESTAMP_S, ?, ?, ?, ?, ?, ?) returning id',[
@@ -833,15 +878,15 @@ class Main_DB:
         return video_task_id
 
 if __name__ == '__main__':
-    # main_db = Main_DB(db_name, yd_token)
+    main_db = Main_DB(db_name, yd_token)
     # main_db.load_books()
     # # for i in range(7):
     # #     main_db.make_book_fragment()
     # #     main_db.analyse_fragment_groq()
     # # main_db.run_voiceover(7, 1)
-    # # for i in range(3):
-    # #     main_db.make_img_prompt_many()
-    # #     time.sleep(10)
+    # for i in range(1):
+    #     main_db.make_img_prompt_many()
+    #     time.sleep(10)
     # # main_db.run_make_img(2)
     # main_db.run_make_video(15)
     # print('Готово!')
