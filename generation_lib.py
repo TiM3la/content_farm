@@ -15,6 +15,8 @@ from kaggle_launcher import run_kaggle_notebook
 from pathlib import Path
 from groq import Groq
 import traceback
+import whisper_timestamped as whisper
+import pysubs2
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -287,6 +289,8 @@ class Main_DB:
         print(self.make_img_table())
         print(self.make_video_table())
         print(self.make_video_task_table())
+        print(self.make_carousel_task_table())
+        print(self.make_subtitle_table())
 
     def make_music_table(self):
         try:
@@ -386,6 +390,24 @@ class Main_DB:
         except Exception as e:
             return f'[!] Ошибка! Таблица Video_task не создана. {e}'
 
+    def make_carousel_task_table(self):
+        try:
+            print(f'[Процесс...] Создаем таблицу Carousel_Task')
+            self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_carousel_task_id START 1;")
+            self.base.execute("create table if not exists Carousel_Task (id integer primary key default nextval('seq_carousel_task_id'), type integer, date_create TIMESTAMP_S, title varchar, pic_num integer, music_id integer REFERENCES Music(id), voiceover_id integer REFERENCES Voiceover(id), pic_list integer[], link_yd_list varchar[])")
+            return '[ОК] Таблица Carousel_Task создана'
+        except Exception as e:
+            return f'[!] Ошибка! Таблица Carousel_Task не создана. {e}'
+
+    def make_subtitle_table(self):
+        try:
+            print(f'[Процесс...] Создаем таблицу Subtitle')
+            self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_subtitle_id START 1;")
+            self.base.execute("create table if not exists Subtitle (id integer primary key default nextval('seq_subtitle_id'), voiceover_id integer REFERENCES Voiceover(id), date_create TIMESTAMP_S, link_yd varchar)")
+            return '[ОК] Таблица Subtitle создана'
+        except Exception as e:
+            return f'[!] Ошибка! Таблица Subtitle не создана. {e}'
+
 
     def load_books(self):
         try:
@@ -483,6 +505,7 @@ class Main_DB:
                 model=model_id,
                 messages=messages,
                 temperature=0.1,  # Низкая температура для точного извлечения без галлюцинаций
+                timeout = 30
             )
             result = response.choices[0].message.content.strip()
             if result != 'NONE':
@@ -498,6 +521,7 @@ class Main_DB:
                             model=model_id,
                             messages=messages,
                             temperature=0.1,  # Низкая температура для точного извлечения без галлюцинаций
+                            timeout = 30
                         )
                         result_check = response.choices[0].message.content.strip()
                         if result_check == 'NONE':
@@ -532,7 +556,7 @@ class Main_DB:
         with open(fragment_path, 'r', encoding='utf-8') as fragment_file:
             fragment_text = fragment_file.read()
 
-        client = Groq(api_key=groq_token)
+        client = Groq(api_key=groq_token, timeout = 30)
         messages = [
             {"role": "system", "content": system_prompt_generate},
             {"role": "user", "content": f"Текст для анализа:\n\n{fragment_text}"}
@@ -542,6 +566,7 @@ class Main_DB:
                 model=model_groq,
                 messages=messages,
                 temperature=0.1,  # Низкая температура для точного извлечения без галлюцинаций
+                timeout=30
             )
             result = response.choices[0].message.content.strip()
             if result != 'NONE':
@@ -558,6 +583,7 @@ class Main_DB:
                                 model=model_groq,
                                 messages=messages,
                                 temperature=0.1,  # Низкая температура для точного извлечения без галлюцинаций
+                                timeout=30
                             )
                             result_check = response.choices[0].message.content.strip()
                             if result_check == 'NONE':
@@ -627,16 +653,24 @@ class Main_DB:
             print(f"[Ошибка] {e}")
 
     def run_voiceover(self, n, type):
-        client = run_kaggle_notebook('gradio_url_voiceover.txt', "tim3la/voiceover-1", str(BASE_DIR / 'notebooks' / 'voiceover'))
-        if client:
-            for i in range(n):
-                self.make_voiceover(type, client)
-        else:
-            print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
-        try:
-            client.predict(api_name="/stop_server")
-        except Exception:
-            pass  # сервер УМЕР — это ожидаемо
+        # client = run_kaggle_notebook('gradio_url_voiceover.txt', "tim3la/voiceover-1", str(BASE_DIR / 'notebooks' / 'voiceover'))
+        # if client:
+        #     for i in range(n):
+        #         self.make_voiceover(type, client)
+        # else:
+        #     print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
+        # try:
+        #     client.predict(api_name="/stop_server")
+        # except Exception:
+        #     pass  # сервер УМЕР — это ожидаемо
+        voiceovers = self.base.execute('select v.id from Voiceover v where not exists (select 1 from Subtitle s where s.voiceover_id = v.id)').fetchall()
+        for v in voiceovers:
+            df = self.base.execute('select * from Voiceover where id = ?', [v[0]]).df()
+            if df.empty:
+                return False
+            voiceover_object = df.iloc[0].to_dict()
+            self.make_subtitle(voiceover_object['id'])
+
 
     def make_img_prompt(self):
         print(f'[Процесс...] Генерируем промпт для картинки')
@@ -698,6 +732,36 @@ class Main_DB:
             except Exception as e:
                 print('Ошибка генерации вопроса')
 
+    def make_subtitle(self, voiceover_id):
+        # берем озвучку
+        try:
+            df = self.base.execute('select * from Voiceover where id = ?', [voiceover_id]).df()
+            if df.empty:
+                return False
+            voiceover_object = df.iloc[0].to_dict()
+            # берем цитату
+            df = self.base.execute('select * from Quote where id = ?', [voiceover_object['quote_id']]).df()
+            if df.empty:
+                return False
+            quote_object = df.iloc[0].to_dict()
+            voiceover_name = os.path.basename(voiceover_object['link_yd'])
+            self.y.download(voiceover_object['link_yd'], str(BASE_DIR / 'temp' / 'voiceovers' / voiceover_name))
+            subtitle_id = self.base.execute('insert into Subtitle (voiceover_id, date_create) values (?, NOW()::TIMESTAMP::TIMESTAMP_S) returning id', [voiceover_id])
+            subtitle_id = subtitle_id.fetchone()[0]
+
+            # сохраняем на яндекс диск
+            temp_path = str(BASE_DIR / 'temp' / 'subtitles' / f'{subtitle_id}_{voiceover_id}.srt')
+            yd_path = f'app:/subtitles/{subtitle_id}_{voiceover_id}.srt'
+            self.base.execute('update Subtitle set link_yd = ? where id = ?', [yd_path, subtitle_id])
+            generate_srt(str(BASE_DIR / 'temp' / 'voiceovers' / voiceover_name), quote_object['text'], temp_path)
+            self.y.upload(temp_path, yd_path)
+
+            # очищаем временные файлы
+            os.remove(temp_path)
+            os.remove(str(BASE_DIR / 'temp' / 'voiceovers' / voiceover_name))
+
+        except Exception as e:
+            print(f'[Ошибка] Ошибка генерации субтитров: {e}')
 
     def make_img(self, client):
         print(f'[Процесс...] Создаем картинку')
@@ -732,10 +796,10 @@ class Main_DB:
                     else:
                         print("[!!!] Критическая ошибка связи.")
             print(f"[ПК] Создана картинка {img_id}_{prompt_object['id']}.png")
-            if self.y.exists(f'app:/images/{img_id}_{prompt_object['id']}.png'):
+            if self.y.exists(f'app:/images/{img_id}_{prompt_object["id"]}.png'):
                 self.base.execute(
                     'update Image set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?',
-                    [f'app:/images/{img_id}_{prompt_object['id']}.png', img_id])
+                    [f'app:/images/{img_id}_{prompt_object["id"]}.png', img_id])
                 self.base.execute('update Prompt_img set date_last_use=NOW()::TIMESTAMP::TIMESTAMP_S, use_number = ? where id = ?', [prompt_object['use_number'] + 1, prompt_object['id']])
             else:
                 self.base.execute('delete from Image where id = ?', [img_id])
@@ -789,10 +853,10 @@ class Main_DB:
                     else:
                         print("[!!!] Критическая ошибка связи.")
             print(f"[ПК] Создано видео {video_id}_{img_object['id']}.mp4")
-            if self.y.exists(f'app:/videos/{video_id}_{img_object['id']}.mp4'):
+            if self.y.exists(f'app:/videos/{video_id}_{img_object["id"]}.mp4'):
                 self.base.execute(
                     'update Video set date_create = NOW()::TIMESTAMP::TIMESTAMP_S, link_yd = ? where id = ?',
-                    [f'app:/videos/{video_id}_{img_object['id']}.mp4', video_id])
+                    [f'app:/videos/{video_id}_{img_object["id"]}.mp4', video_id])
                 self.base.execute(
                     'update Image set date_make_video=NOW()::TIMESTAMP::TIMESTAMP_S where id = ?',
                     [img_object['id']])
@@ -849,7 +913,9 @@ class Main_DB:
             return False
 
     def find_music(self, ultimate=None):
-        df = self.base.execute(f'select * from Music where {ultimate} order by use_number, date_last_use, id limit 1').df()
+        if ultimate:
+            ultimate += 'where '
+        df = self.base.execute(f'select * from Music {ultimate} order by use_number, date_last_use, id limit 1').df()
         if df.empty:
             return False
         music_object = df.iloc[0].to_dict()
@@ -877,13 +943,109 @@ class Main_DB:
         self.base.execute('update Video_Task set link_yd = ? where id = ?', [f'app:/video_tasks/{video_task_id}_video_task_dict["type"]', video_task_id])
         return video_task_id
 
+    def write_carousel_task(self, carousel_task_dict, id=None):
+        if id:
+            self.base.execute('update Carousel_Task set link_yd_list = ? where id = ?', [carousel_task_dict['link_yd_list'], id])
+        else:
+            carousel_task_id = self.base.execute('insert into Carousel_Task (type, date_create, title, pic_num, music_id, voiceover_id, pic_list, link_yd_list) values (?, NOW()::TIMESTAMP::TIMESTAMP_S, ?, ?, ?, ?, ?, ?) returning id',[
+                carousel_task_dict['type'],
+                carousel_task_dict['title'],
+                carousel_task_dict['pic_num'],
+                carousel_task_dict['music_id'],
+                carousel_task_dict['voiceover_id'],
+                carousel_task_dict['pic_list'],
+                carousel_task_dict['link_yd_list'],
+            ]).fetchone()[0]
+            return carousel_task_id
+
+def generate_srt(audio_path: str, text: str, output_path: str,
+                 model_size: str = "small", language: str = "ru") -> None:
+    """
+    Создаёт пословные SRT-субтитры для аудио и точного текста.
+    Каждому слову соответствует отдельная запись с временем начала и конца.
+    """
+    # ---------- 1. Разбиваем текст на токены (слово + прилегающая пунктуация) ----------
+    raw_tokens = re.findall(r'\S+', text)               # все «непробельные» куски
+    tokens = []           # итоговый список отображаемых слов
+    clean_words = []      # соответствующие им «чистые» слова (без пунктуации, нижний регистр)
+
+    for tok in raw_tokens:
+        # оставляем только буквы/цифры для выравнивания
+        clean = re.sub(r'[^\w]', '', tok).lower()
+        if clean:                         # игнорируем токены, состоящие только из пунктуации
+            tokens.append(tok)
+            clean_words.append(clean)
+
+    if not tokens:
+        raise ValueError("Переданный текст не содержит слов.")
+
+    # ---------- 2. Транскрипция аудио с метками времени для каждого слова ----------
+    model = whisper.load_model(model_size, device="cpu")
+    result = whisper.transcribe(
+        model, audio_path, language=language,
+        beam_size=5, best_of=5, temperature=0.0
+    )
+
+    # Собираем распознанные слова: (текст_в_нижнем_регистре, start, end)
+    hyp_words = []
+    for segment in result["segments"]:
+        for w in segment["words"]:
+            hyp_words.append((w["text"].strip().lower(), w["start"], w["end"]))
+
+    # ---------- 3. Выравнивание эталонных и распознанных слов ----------
+    n, m = len(clean_words), len(hyp_words)
+    dp = np.zeros((n + 1, m + 1), dtype=int)
+    for i in range(n + 1): dp[i, 0] = i
+    for j in range(m + 1): dp[0, j] = j
+
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            cost = 0 if clean_words[i - 1] == hyp_words[j - 1][0] else 1
+            dp[i, j] = min(dp[i - 1, j] + 1, dp[i, j - 1] + 1,
+                           dp[i - 1, j - 1] + cost)
+
+    pairs = []
+    i, j = n, m
+    while i > 0 or j > 0:
+        if i > 0 and j > 0 and (
+            clean_words[i - 1] == hyp_words[j - 1][0] or
+            dp[i, j] == dp[i - 1, j - 1] + 1
+        ):
+            pairs.append((i - 1, j - 1))
+            i -= 1; j -= 1
+        elif i > 0 and dp[i, j] == dp[i - 1, j] + 1:
+            i -= 1
+        else:
+            j -= 1
+    pairs.reverse()
+
+    # Сопоставляем эталонные слова с временами
+    time_map = {}
+    for ri, hi in pairs:
+        if ri is not None and hi is not None:
+            time_map[ri] = (hyp_words[hi][1], hyp_words[hi][2])
+
+    # ---------- 4. Создаём пословные субтитры (без пунктуации) ----------
+    subs = pysubs2.SSAFile()
+    for idx, word_text in enumerate(tokens):
+        if idx in time_map:
+            start_sec, end_sec = time_map[idx]
+            start_ms = int(start_sec * 1000)
+            end_ms = int(end_sec * 1000)
+            # Очищенный текст – только буквы и цифры
+            clean_display = re.sub(r'[^\w]', '', word_text)
+            subs.append(pysubs2.SSAEvent(start=start_ms, end=end_ms, text=clean_display))
+
+    subs.save(output_path)
+    print(f"Субтитры сохранены в {output_path}")
+
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
-    # main_db.load_books()
-    # # for i in range(7):
-    # #     main_db.make_book_fragment()
-    # #     main_db.analyse_fragment_groq()
-    # # main_db.run_voiceover(7, 1)
+    main_db.load_books()
+    # for i in range(5):
+    #     main_db.make_book_fragment()
+    #     main_db.analyse_fragment_groq()
+    main_db.run_voiceover(5, 1)
     # for i in range(1):
     #     main_db.make_img_prompt_many()
     #     time.sleep(10)

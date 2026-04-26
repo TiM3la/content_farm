@@ -2,8 +2,11 @@ from math import ceil
 from generation_lib import *
 from moviepy import VideoFileClip, AudioFileClip, concatenate_videoclips, TextClip, CompositeVideoClip, ImageClip
 from moviepy.audio.fx import AudioFadeOut
-from moviepy.video.fx import FadeOut, TimeMirror
+from moviepy.video.fx import FadeOut, TimeMirror, Margin
 import random as r
+import textwrap
+from PIL import Image, ImageDraw, ImageFont
+
 
 
 TYPES_OF_VIDEO_CONTENT = {
@@ -68,7 +71,7 @@ class Video_task:
             # print(self.music_object)
         if self.type == 3:
             self.video_objects = main_db.find_clips(self.num_of_videos)
-            self.music_object = main_db.find_music('id = 3')
+            self.music_object = main_db.find_music('id = 1')
             print(self.video_objects[0]['id'])
             self.mistery_question = main_db.get_info(f'select p.* from Prompt_img as p inner join Image as i on i.prompt_id = p.id inner join Video as v on v.img_id = i.id where v.id = {self.video_objects[0]['id']}')['mistery_question']
             print(self.video_objects)
@@ -176,23 +179,39 @@ class Video_task:
             # делаем затухание музыки
             music = music.with_effects([AudioFadeOut(1)])
 
-            # делаем затухание видео
-            final_video = final_video.with_effects([FadeOut(1)])
-
             # Заменяем оригинальную аудиодорожку видео на музыку
             final_video = final_video.with_audio(music)
 
             # делаем монтаж фразы
+
+            font_size = 35
+            font_path = str(BASE_DIR / 'assets' / 'RobotoSerif-Medium.ttf')
+            text = self.mistery_question
+            max_width = final_video.w - 80
+
+            wrapped_text = pro_pixel_wrap(
+                text=text,
+                font_path=font_path,
+                font_size=font_size,
+                max_width=max_width
+            )
+
             video_text = (
-                TextClip(
-                    text=self.mistery_question,
-                    # font=str(BASE_DIR / 'assets' / 'RobotoSerif-Medium.ttf'),
-                    font_size=37,
-                    color='white',
-                    size=(final_video.w - 80, None),
-                    method="caption",
+                create_centered_textclip(
+                    text=wrapped_text,
+                    font_path=font_path,
+                    font_size=font_size,
+                    width=max_width
                 )
-                .with_position(('center', final_video.h - 90))
+                .with_effects([
+                    Margin(
+                        left=40,
+                        right=40,
+                        bottom=80,
+                        opacity=0  # прозрачный фон
+                    )
+                ])
+                .with_position(('center', 'bottom'))
                 .with_duration(self.duration_s)
                 .with_start(0)
             )
@@ -205,13 +224,13 @@ class Video_task:
 
             final_video = CompositeVideoClip([final_video, gradient, video_text])
 
+            # делаем затухание видео
+            final_video = final_video.with_effects([FadeOut(1)])
+
             # Сохраняем результат
             final_video.write_videofile(
                 str(BASE_DIR / 'temp' / 'video_tasks' / f"{self.video_task_id}_{self.type}.mp4"),
                 codec="libx264", audio_codec="aac")
-
-            # отладка: сохранить кадр через 2 секунды
-            final_video.save_frame(str(BASE_DIR / "debug_frame.png"), t=2)
 
         finally:
             # Закрываем все клипы, чтобы освободить файлы
@@ -248,13 +267,86 @@ class Carousel_task:
         self.type = type
         self.title = TYPES_OF_CAROUSEL_CONTENT[type]
         self.num_of_pic = num_of_pic
+        self.carousel_path_list = []
+
+    def get_task_id(self):
+        if self.type == 1:
+            carousel_task_dict = {
+                'type': 1,
+                'title': self.title,
+                'pic_num': self.num_of_pic,
+                'music_id': self.music_object['id'],
+                'voiceover_id': None,
+                'pic_list': [image_object['id'] for image_object in self.image_objects],
+                'link_yd_list': None
+            }
+        self.carousel_task_id = main_db.write_carousel_task(carousel_task_dict)
+        return self.carousel_task_id
 
     def find_resources(self):
         if self.type == 1:
+            print('жопа')
             self.image_objects = main_db.find_images(self.num_of_pic)
             self.music_object = main_db.find_music()
             print(self.image_objects)
             print(self.music_object)
+
+        self.get_task_id()
+
+    def download_resources(self):
+        for image_object in self.image_objects:
+            main_db.y.download(image_object['link_yd'], str(BASE_DIR / 'temp' / 'images' / os.path.basename(image_object['link_yd'])))
+
+        main_db.y.download(self.music_object['link_yd'], str(BASE_DIR / 'temp' / 'music' / os.path.basename(self.music_object['link_yd'])))
+
+    def clear_resources(self):
+        # Удаляем видеофайлы
+        for image_object in self.image_objects:
+            image_path = BASE_DIR / 'temp' / 'images' / os.path.basename(image_object['link_yd'])
+            if image_path.exists():
+                os.remove(image_path)
+        # Удаляем музыку
+        music_path = BASE_DIR / 'temp' / 'music' / os.path.basename(self.music_object['link_yd'])
+        if music_path.exists():
+            os.remove(music_path)
+        # удаляем эти картинки
+        for carousel_image in self.carousel_path_list:
+            os.remove(carousel_image)
+
+    def make_carousel_type_1(self):
+        for i, image_object in enumerate(self.image_objects):
+            num = i + 1
+            image_path = str(BASE_DIR / 'temp' / 'images' / os.path.basename(image_object['link_yd']))
+            image = Image.open(image_path)
+            carousel_image_path = str(BASE_DIR / 'temp' / 'carousel_tasks' / f'{self.carousel_task_id}_{self.type}_{num}.png')
+            image.save(carousel_image_path)
+            self.carousel_path_list.append(carousel_image_path)
+        del image
+
+    def save_carousel(self):
+        for carousel_image in self.carousel_path_list:
+            main_db.y.upload(
+                carousel_image,
+                f'app:/carousel_tasks/{os.path.basename(carousel_image)}')
+
+        main_db.write_carousel_task({
+            'link_yd_list': [f'app:/carousel_tasks/{os.path.basename(path)}' for path in self.carousel_path_list],
+        },
+        self.carousel_task_id)
+
+
+    def make_carousel(self):
+        # ищем ресурсы
+        self.find_resources()
+        # скачиваем ресурсы
+        self.download_resources()
+        # делаем карусель
+        if self.type == 1:
+            self.make_carousel_type_1()
+        # сохраняем видео на яндекс диск
+        self.save_carousel()
+        # удаляем временные файлы
+        self.clear_resources()
 
 def set_rms(clip, target_rms=0.1):
     """
@@ -268,6 +360,49 @@ def set_rms(clip, target_rms=0.1):
     factor = target_rms / current_rms
     return clip.with_volume_scaled(factor)
 
+def create_centered_textclip(text, font_path, font_size, width, color="white"):
+    font = ImageFont.truetype(font_path, font_size)
+
+    lines = text.split("\n")
+
+    # считаем высоту
+    line_height = 40
+    height = line_height * len(lines)
+
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    y = 0
+    for line in lines:
+        w = font.getlength(line)
+        x = (width - w) / 2  # 🔥 ЦЕНТРИРОВАНИЕ
+
+        draw.text((x, y), line, font=font, fill=color)
+        y += line_height
+
+    return ImageClip(np.array(img))
+
+def pro_pixel_wrap(text: str, font_path: str, font_size: int, max_width: int,):
+    font = ImageFont.truetype(font_path, font_size)
+
+    words = text.split()
+    lines = []
+    current_line = ""
+
+    for word in words:
+        test_line = word if not current_line else f"{current_line} {word}"
+
+        if font.getlength(test_line) <= max_width:
+            current_line = test_line
+        else:
+            lines.append(current_line)
+            current_line = word
+
+    if current_line:
+        lines.append(current_line)
+
+    return "\n".join(lines)
+
 if __name__ == '__main__':
     # база данных
     main_db = Main_DB(db_name, yd_token)
@@ -280,11 +415,16 @@ if __name__ == '__main__':
     #     # делаем монтаж и сохраняем на яндекс диск
     #     video_task_1.make_video()
 
-    for i in range(1):
-        video_task_3 = Video_task(3, 5 + round(r.uniform(0.00, 10.00), 2))
-        print(video_task_3.title, video_task_3.num_of_videos, video_task_3.duration_s)
+    # for i in range(3):
+    #     video_task_3 = Video_task(3, 5 + round(r.uniform(0.00, 10.00), 2))
+    #     print(video_task_3.title, video_task_3.num_of_videos, video_task_3.duration_s)
+    #
+    #     video_task_3.make_video()
 
-        video_task_3.make_video()
+    # for i in range(1):
+    #     image_task_1 = Carousel_task(1, 4)
+    #     print(image_task_1.title, image_task_1.num_of_pic)
+    #     image_task_1.make_carousel()
     #
     # carousel_task_1 = Carousel_task(1, 4)
     # print(carousel_task_1.title, carousel_task_1.num_of_pic)

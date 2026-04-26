@@ -1,0 +1,11 @@
+moviepy
+pillow
+duckdb
+yadisk
+dotenv
+huggingface
+gradio
+kaggle
+pathlib
+groq
+ctc_forced_aligner
