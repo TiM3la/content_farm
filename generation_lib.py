@@ -17,6 +17,7 @@ from groq import Groq
 import traceback
 import whisper_timestamped as whisper
 import pysubs2
+import wave
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -349,7 +350,7 @@ class Main_DB:
         try:
             print(f'[Процесс...] Создаем таблицу Voiceover')
             self.base.execute("CREATE SEQUENCE IF NOT EXISTS seq_voiceover_id START 1;")
-            self.base.execute("create table if not exists Voiceover (id integer primary key default nextval('seq_voiceover_id'), quote_id integer REFERENCES Quote(id), type varchar, duration integer, date_create TIMESTAMP_S, date_use TIMESTAMP_S, link_yd VARCHAR)")
+            self.base.execute("create table if not exists Voiceover (id integer primary key default nextval('seq_voiceover_id'), quote_id integer REFERENCES Quote(id), type varchar, duration integer, date_create TIMESTAMP_S, date_last_use TIMESTAMP_S, use_number integer, link_yd VARCHAR)")
             return '[ОК] Таблица Voiceover создана'
         except Exception as e:
             return f'[!] Ошибка! Таблица Voiceover не создана. {e}'
@@ -622,7 +623,7 @@ class Main_DB:
         print(f'[ОК] Найдена цитата {quote_object["id"]}: {quote_object["text"]}')
 
         try:
-            voiceover_id = self.base.execute('insert into Voiceover(quote_id, type) values (?, ?) returning id', [quote_object['id'], voiceover_type])
+            voiceover_id = self.base.execute('insert into Voiceover(quote_id, type, use_number) values (?, ?, 0) returning id', [quote_object['id'], voiceover_type])
             voiceover_id = voiceover_id.fetchone()[0]
             for attempt in range(7):
                 try:
@@ -653,16 +654,16 @@ class Main_DB:
             print(f"[Ошибка] {e}")
 
     def run_voiceover(self, n, type):
-        # client = run_kaggle_notebook('gradio_url_voiceover.txt', "tim3la/voiceover-1", str(BASE_DIR / 'notebooks' / 'voiceover'))
-        # if client:
-        #     for i in range(n):
-        #         self.make_voiceover(type, client)
-        # else:
-        #     print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
-        # try:
-        #     client.predict(api_name="/stop_server")
-        # except Exception:
-        #     pass  # сервер УМЕР — это ожидаемо
+        client = run_kaggle_notebook('gradio_url_voiceover.txt', "tim3la/voiceover-1", str(BASE_DIR / 'notebooks' / 'voiceover'))
+        if client:
+            for i in range(n):
+                self.make_voiceover(type, client)
+        else:
+            print("[!] Не удалось запустить Kaggle-сервер. Прерываем работу.")
+        try:
+            client.predict(api_name="/stop_server")
+        except Exception:
+            pass  # сервер УМЕР — это ожидаемо
         voiceovers = self.base.execute('select v.id from Voiceover v where not exists (select 1 from Subtitle s where s.voiceover_id = v.id)').fetchall()
         for v in voiceovers:
             df = self.base.execute('select * from Voiceover where id = ?', [v[0]]).df()
@@ -733,8 +734,9 @@ class Main_DB:
                 print('Ошибка генерации вопроса')
 
     def make_subtitle(self, voiceover_id):
-        # берем озвучку
+
         try:
+            # берем озвучку
             df = self.base.execute('select * from Voiceover where id = ?', [voiceover_id]).df()
             if df.empty:
                 return False
@@ -744,12 +746,21 @@ class Main_DB:
             if df.empty:
                 return False
             quote_object = df.iloc[0].to_dict()
+
+            # скачиваем озвучку
             voiceover_name = os.path.basename(voiceover_object['link_yd'])
             self.y.download(voiceover_object['link_yd'], str(BASE_DIR / 'temp' / 'voiceovers' / voiceover_name))
+
+            # сохраняем длительность
+            voiceover_path = str(BASE_DIR / 'temp' / 'voiceovers' / voiceover_name)
+            duration = get_wav_duration_local(voiceover_path)
+            self.base.execute('UPDATE Voiceover SET duration = ?, WHERE id = ?',
+                              [int(duration), voiceover_object['id']])
+            # создаем субтитры в бд
             subtitle_id = self.base.execute('insert into Subtitle (voiceover_id, date_create) values (?, NOW()::TIMESTAMP::TIMESTAMP_S) returning id', [voiceover_id])
             subtitle_id = subtitle_id.fetchone()[0]
 
-            # сохраняем на яндекс диск
+            # создаем субтитры, сохраняем  на яндекс-диск
             temp_path = str(BASE_DIR / 'temp' / 'subtitles' / f'{subtitle_id}_{voiceover_id}.srt')
             yd_path = f'app:/subtitles/{subtitle_id}_{voiceover_id}.srt'
             self.base.execute('update Subtitle set link_yd = ? where id = ?', [yd_path, subtitle_id])
@@ -922,6 +933,18 @@ class Main_DB:
         self.base.execute('update Music set date_last_use = NOW()::TIMESTAMP::TIMESTAMP_S, use_number = ? where id = ?', [int(music_object['use_number']) + 1, music_object['id']])
         return music_object
 
+    def find_voiceover(self, duration):
+        df = self.base.execute('select *, abs(duration - ?) as diff from Voiceover order by diff, date_use, use_number, id limit 1', [duration]).df()
+        if df.empty:
+            return False
+        voiceover_object = df.iloc[0].to_dict()
+        self.base.execute('update Voiceover set date_use = NOW()::TIMESTAMP::TIMESTAMP_S, use_number = ? where id = ?', [int(voiceover_object['use_number']) + 1, voiceover_object['id']])
+        if voiceover_object['duration'] > duration:
+            final_duration = voiceover_object['duration'] + 1
+        else:
+            final_duration = duration + 1
+        return voiceover_object, final_duration
+
     def get_info(self ,query):
         df = self.base.execute(query).df()
         if df.empty:
@@ -958,8 +981,7 @@ class Main_DB:
             ]).fetchone()[0]
             return carousel_task_id
 
-def generate_srt(audio_path: str, text: str, output_path: str,
-                 model_size: str = "small", language: str = "ru") -> None:
+def generate_srt(audio_path: str, text: str, output_path: str, model_size: str = "small", language: str = "ru") -> None:
     """
     Создаёт пословные SRT-субтитры для аудио и точного текста.
     Каждому слову соответствует отдельная запись с временем начала и конца.
@@ -1039,13 +1061,19 @@ def generate_srt(audio_path: str, text: str, output_path: str,
     subs.save(output_path)
     print(f"Субтитры сохранены в {output_path}")
 
+def get_wav_duration_local(file_path):
+    with wave.open(file_path, 'r') as wav_file:
+        frames = wav_file.getnframes()
+        rate = wav_file.getframerate()
+        return frames / float(rate)
+
 if __name__ == '__main__':
     main_db = Main_DB(db_name, yd_token)
     main_db.load_books()
     # for i in range(5):
     #     main_db.make_book_fragment()
     #     main_db.analyse_fragment_groq()
-    main_db.run_voiceover(5, 1)
+    # main_db.run_voiceover(5, 1)
     # for i in range(1):
     #     main_db.make_img_prompt_many()
     #     time.sleep(10)

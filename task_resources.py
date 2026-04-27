@@ -1,8 +1,10 @@
+import os.path
 from math import ceil
 from generation_lib import *
-from moviepy import VideoFileClip, AudioFileClip, concatenate_videoclips, TextClip, CompositeVideoClip, ImageClip
+from moviepy import VideoFileClip, AudioFileClip, concatenate_videoclips, TextClip, CompositeVideoClip, ImageClip, CompositeAudioClip
 from moviepy.audio.fx import AudioFadeOut
 from moviepy.video.fx import FadeOut, TimeMirror, Margin
+from moviepy.video.tools.subtitles import SubtitlesClip
 import random as r
 import textwrap
 from PIL import Image, ImageDraw, ImageFont
@@ -32,6 +34,7 @@ class Video_task:
         self.title = TYPES_OF_VIDEO_CONTENT[type]
         self.duration_s = duration_s
         self.num_of_videos = ceil(self.duration_s / UNIT_DURATION['video'])
+        self.voiceover_object = None
 
         if self.type == 2:
             self.voiceover_words = int(self.duration_s / UNIT_DURATION['voiceover_word'])
@@ -48,6 +51,16 @@ class Video_task:
                 'video_num': self.num_of_videos,
                 'music_id': self.music_object['id'],
                 'voiceover_id': None,
+                'video_list': [video_object['id'] for video_object in self.video_objects]
+            }
+        if self.type == 2:
+            video_task_dict = {
+                'type': 2,
+                'title': self.title,
+                'duration': self.duration_s,
+                'video_num': self.num_of_videos,
+                'music_id': self.music_object['id'],
+                'voiceover_id': self.voiceover_object['id'],
                 'video_list': [video_object['id'] for video_object in self.video_objects]
             }
         if self.type == 3:
@@ -69,11 +82,22 @@ class Video_task:
             self.music_object = main_db.find_music() # условие - не тревожная музыка
              # print(self.video_objects)
             # print(self.music_object)
+        if self.type == 2:
+            self.voiceover_object, self.duration_s = main_db.find_voiceover(self.duration_s)
+            self.num_of_videos = ceil(self.duration_s / UNIT_DURATION['video'])
+            self.video_objects = main_db.find_clips(self.num_of_videos)
+            self.music_object = main_db.find_music()
+            self.subtitle_object = main_db.get_info(f'select * from Subtitle where voiceover_id = {self.voiceover_object["id"]}')
+
+            print(self.voiceover_object, self.video_objects, self.music_object)
+
         if self.type == 3:
             self.video_objects = main_db.find_clips(self.num_of_videos)
             self.music_object = main_db.find_music('id = 1')
+
             print(self.video_objects[0]['id'])
             self.mistery_question = main_db.get_info(f'select p.* from Prompt_img as p inner join Image as i on i.prompt_id = p.id inner join Video as v on v.img_id = i.id where v.id = {self.video_objects[0]['id']}')['mistery_question']
+
             print(self.video_objects)
             print(self.music_object)
             print(self.mistery_question)
@@ -86,7 +110,22 @@ class Video_task:
 
         main_db.y.download(self.music_object['link_yd'], str(BASE_DIR / 'temp' / 'music' / os.path.basename(self.music_object['link_yd'])))
 
+        if self.type == 2:
+            main_db.y.download(self.voiceover_object['link_yd'], str(BASE_DIR / 'temp' / 'voiceovers' / os.path.basename(self.voiceover_object['link_yd'])))
+            main_db.y.download(self.subtitle_object['link_yd'], str(BASE_DIR / 'temp' / 'subtitles' / os.path.basename(self.subtitle_object['link_yd'])))
+
     def clear_resources(self):
+        # удаляем озвучку
+        if self.voiceover_object:
+            voiceover_path = BASE_DIR / 'temp' / 'voiceovers' / os.path.basename(self.voiceover_object['link_yd'])
+            if voiceover_path.exists():
+                os.remove(voiceover_path)
+        # удаляем субтитры
+        if self.subtitle_object:
+            subtitle_path = BASE_DIR / 'temp' / 'subtitles' / os.path.basename(self.subtitle_object['link_yd'])
+            if subtitle_path.exists():
+                os.remove(subtitle_path)
+
         # Удаляем видеофайлы
         for video_object in self.video_objects:
             video_path = BASE_DIR / 'temp' / 'videos' / os.path.basename(video_object['link_yd'])
@@ -148,6 +187,101 @@ class Video_task:
                 music.close()
             if final_video is not None:
                 final_video.close()
+
+    def make_video_type_2(self):
+        # загружаем видео, музыку, озвучку
+        clips = []
+        music = None
+        voiceover = None
+        final_video = None
+        subs_clip = None
+
+        try:
+            for video_object in self.video_objects:
+                clips.append(
+                    VideoFileClip(str(BASE_DIR / 'temp' / 'videos' / os.path.basename(video_object['link_yd']))))
+            music = AudioFileClip(
+                str(BASE_DIR / 'temp' / 'music' / os.path.basename(self.music_object['link_yd'])))
+
+            voiceover = AudioFileClip(BASE_DIR / 'temp' / 'voiceovers' / os.path.basename(self.voiceover_object['link_yd']))
+
+            # балансируем громкость
+            music = set_rms(music, 0.1)
+            voiceover = set_rms(voiceover, 0.2)
+
+            # склеиваем
+            final_video = concatenate_videoclips(clips)
+
+            # обрезаем видео под длительность
+            final_video = final_video.subclipped(0, self.duration_s)
+
+            # Если музыка длиннее итогового видео — обрезаем
+            if music.duration > final_video.duration:
+                music = music.subclipped(0, final_video.duration)
+
+            # делаем затухание музыки
+            music = music.with_effects([AudioFadeOut(1)])
+            voiceover = voiceover.with_effects([AudioFadeOut(1)])
+
+            # делаем затухание видео
+            final_video = final_video.with_effects([FadeOut(1)])
+
+            # Заменяем оригинальную аудиодорожку видео на музыку
+            final_video = final_video.with_audio(CompositeAudioClip([music, voiceover]))
+
+            # === НОВАЯ ГРУППИРОВКА СЛОВ ===
+            sub_path = str(BASE_DIR / 'temp' / 'subtitles' / os.path.basename(self.subtitle_object['link_yd']))
+            sub_events = parse_srt(sub_path)
+
+            FONT_PATH = str(BASE_DIR / 'assets' / 'RobotoSerif-Medium.ttf')
+            FONT_SIZE = 37
+            MAX_WIDTH = final_video.w - 80
+            WORDS_PER_CLIP = 4  # регулируй по вкусу
+
+            text_clips = []
+
+            # Группируем события
+            for i in range(0, len(sub_events), WORDS_PER_CLIP):
+                group = sub_events[i:i + WORDS_PER_CLIP]
+                # Склеиваем слова в одну строку
+                combined_text = ' '.join(ev['text'] for ev in group)
+                wrapped = pro_pixel_wrap(combined_text, FONT_PATH, FONT_SIZE, MAX_WIDTH)
+
+                txt_clip = create_centered_textclip(wrapped, FONT_PATH, FONT_SIZE, MAX_WIDTH)
+                txt_clip = txt_clip.with_position(('center', 'bottom'))
+                txt_clip = txt_clip.with_effects([
+                    Margin(left=40, right=40, bottom=80, opacity=0)
+                ])
+
+                # Время: начало первого слова, конец последнего
+                start_time = group[0]['start']
+                end_time = group[-1]['end']
+                txt_clip = txt_clip.with_start(start_time).with_duration(end_time - start_time)
+
+                text_clips.append(txt_clip)
+
+            # Градиент
+            gradient = (
+                ImageClip(str(BASE_DIR / "assets" / "gradient_bottom.png"))
+                .with_position(("center", "bottom"))
+                .with_duration(final_video.duration)
+            )
+
+            # Порядок: видео → градиент → текстовые клипы
+            final_video = CompositeVideoClip([final_video, gradient] + text_clips)
+
+            # Сохраняем результат
+            final_video.write_videofile(
+                str(BASE_DIR / 'temp' / 'video_tasks' / f"{self.video_task_id}_{self.type}.mp4"),
+                codec="libx264", audio_codec="aac")
+
+        finally:
+            # Закрываем клипы
+            for clip in clips: clip.close()
+            if music: music.close()
+            if voiceover: voiceover.close()
+            if final_video: final_video.close()
+            if subs_clip: subs_clip.close()
 
     def make_video_type_3(self):
         # загружаем видео и музыку
@@ -254,6 +388,8 @@ class Video_task:
         # делаем видео
         if self.type == 1:
             self.make_video_type_1()
+        if self.type == 2:
+            self.make_video_type_2()
         if self.type == 3:
             self.make_video_type_3()
         # сохраняем видео на яндекс диск
@@ -285,7 +421,6 @@ class Carousel_task:
 
     def find_resources(self):
         if self.type == 1:
-            print('жопа')
             self.image_objects = main_db.find_images(self.num_of_pic)
             self.music_object = main_db.find_music()
             print(self.image_objects)
@@ -403,6 +538,32 @@ def pro_pixel_wrap(text: str, font_path: str, font_size: int, max_width: int,):
 
     return "\n".join(lines)
 
+def parse_srt(srt_path):
+    """Превращает SRT-файл в список словарей {start, end, text}."""
+    events = []
+    with open(srt_path, 'r', encoding='utf-8') as f:
+        content = f.read().strip()
+    if not content:
+        return events
+    blocks = content.split('\n\n')
+    for block in blocks:
+        lines = block.split('\n')
+        if len(lines) < 3:
+            continue
+        # строка времени: 00:00:01,234 --> 00:00:02,345
+        time_line = lines[1]
+        start_str, end_str = time_line.split(' --> ')
+        def to_seconds(t):
+            # t = '00:00:01,234'
+            h, m, s = t.split(':')
+            s, ms = s.split(',')
+            return int(h)*3600 + int(m)*60 + int(s) + int(ms)/1000
+        start = to_seconds(start_str)
+        end = to_seconds(end_str)
+        text = '\n'.join(lines[2:]).strip()
+        events.append({'start': start, 'end': end, 'text': text})
+    return events
+
 if __name__ == '__main__':
     # база данных
     main_db = Main_DB(db_name, yd_token)
@@ -429,3 +590,7 @@ if __name__ == '__main__':
     # carousel_task_1 = Carousel_task(1, 4)
     # print(carousel_task_1.title, carousel_task_1.num_of_pic)
     # carousel_task_1.find_resources()
+
+    for i in range(1):
+        video_task_2 = Video_task(2, 16)
+        video_task_2.make_video()
